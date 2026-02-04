@@ -1,12 +1,17 @@
 // lib/ui/views/auth/welcome_view.dart
 import 'package:flutter/material.dart';
 import 'language_selection_view.dart';
+// Importation de TON dossier login
+import 'login/login_view.dart'; 
 
 class WelcomeView extends StatelessWidget {
   const WelcomeView({super.key});
 
   @override
   Widget build(BuildContext context) {
+    // Couleur rose/rouge du bouton selon ton design
+    const Color brandPink = Color(0xFFE91E63);
+
     return Scaffold(
       body: Stack(
         children: [
@@ -19,13 +24,16 @@ class WelcomeView extends StatelessWidget {
               ),
             ),
           ),
-          // Dégradé noir pour la lisibilité
+          // Dégradé noir pour assurer la lisibilité du texte blanc
           Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                colors: [Colors.transparent, Colors.black.withOpacity(0.8)],
+                colors: [
+                  Colors.transparent,
+                  Colors.black.withOpacity(0.8),
+                ],
               ),
             ),
           ),
@@ -49,12 +57,12 @@ class WelcomeView extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 const Text(
-                  "Faites-vous de l’argent en aidant les passagers à arriver à leurs destination.",
+                  "Faites-vous de l’argent en aidant les passagers à arriver à leur destination.",
                   style: TextStyle(color: Colors.white, fontSize: 16),
                 ),
                 const SizedBox(height: 40),
 
-                // BOUTON : Navigation vers LanguageSelectionView
+                // BOUTON : Créer un compte
                 SizedBox(
                   width: double.infinity,
                   height: 56,
@@ -63,19 +71,18 @@ class WelcomeView extends StatelessWidget {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          // Ajout du 'const' ici pour correspondre au constructeur
                           builder: (context) => const LanguageSelectionView(),
                         ),
                       );
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFE91E63),
+                      backgroundColor: brandPink,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
                     ),
                     child: const Text(
-                      "Create an Account",
+                      "Créer un compte",
                       style: TextStyle(
                         fontSize: 18,
                         color: Colors.white,
@@ -85,21 +92,29 @@ class WelcomeView extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 20),
+
+                // LIEN : Connexion (SANS TRAIT EN BAS)
                 Center(
                   child: TextButton(
                     onPressed: () {
-                      // Logique Login
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const LoginView(),
+                        ),
+                      );
                     },
                     child: RichText(
                       text: const TextSpan(
-                        text: "Already have an account ? ",
-                        style: TextStyle(color: Colors.white),
+                        text: "Vous avez déjà un compte ? ",
+                        style: TextStyle(color: Colors.white, fontSize: 15),
                         children: [
                           TextSpan(
-                            text: "Login ->",
+                            text: "Connexion ->",
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               color: Colors.white,
+                              // Le trait de décoration a été supprimé ici
                             ),
                           ),
                         ],
