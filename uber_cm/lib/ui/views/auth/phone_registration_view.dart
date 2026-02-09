@@ -1,174 +1,292 @@
+// lib/ui/views/auth/phone_registration_view.dart
 import 'package:flutter/material.dart';
 import 'otp_verification_view.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'dart:developer' as dev;
 
-class PhoneRegistrationView extends StatelessWidget {
+class PhoneRegistrationView extends StatefulWidget {
   final String lang;
   final String userName;
   final String userEmail;
 
-  final TextEditingController _phoneController = TextEditingController();
-
-  PhoneRegistrationView({
+  const PhoneRegistrationView({
     super.key,
     required this.lang,
     required this.userName,
     required this.userEmail,
   });
 
-  // --- LA MÉTHODE QUI MANQUAIT ---
-  Future<void> _sendOtpRequest(BuildContext context, String method) async {
+  @override
+  State<PhoneRegistrationView> createState() => _PhoneRegistrationViewState();
+}
+
+class _PhoneRegistrationViewState extends State<PhoneRegistrationView> {
+  final Color brandPink = const Color(0xFFE91E63);
+  final TextEditingController _phoneController = TextEditingController();
+  String _currentValue = "";
+  bool _hasError = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _phoneController.addListener(() {
+      setState(() {
+        _currentValue = _phoneController.text;
+        if (_hasError) _hasError = false; 
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _phoneController.dispose();
+    super.dispose();
+  }
+
+  // --- LOGIQUE DU FLASH ROUGE TEMPORAIRE ---
+  void _triggerErrorEffect() {
+    setState(() => _hasError = true);
+    Future.delayed(const Duration(milliseconds: 2000), () {
+      if (mounted) {
+        setState(() => _hasError = false);
+      }
+    });
+  }
+
+  Future<void> _sendOtpRequest(String method) async {
     final String phoneNumber = "+237${_phoneController.text.trim()}";
+    Navigator.pop(context); 
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator(color: Color(0xFFE91E63))),
+    );
 
     try {
-      // On ferme d'abord le dialogue de choix
-      Navigator.pop(context);
-
-      // On affiche un indicateur de chargement
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const Center(child: CircularProgressIndicator(color: Color(0xFFE91E63))),
-      );
-
       final response = await http.post(
         Uri.parse('http://172.30.7.48:5000/api/auth/request-otp'),
         headers: {"Content-Type": "application/json"},
         body: jsonEncode({
           "phone": phoneNumber,
-          "name": userName,
-          "email": userEmail,
-          "method": method, // 'whatsapp' ou 'email'
+          "name": widget.userName,
+          "email": widget.userEmail,
+          "method": method,
         }),
       );
 
-      if (!context.mounted) return;
-      
-      // On ferme l'indicateur de chargement
-      Navigator.pop(context);
+      if (!mounted) return;
+      Navigator.pop(context); 
 
       if (response.statusCode == 200) {
-        // Succès : on passe à l'écran de vérification en envoyant le numéro
         Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => OtpVerificationView(
-              lang: lang,
-              phoneNumber: phoneNumber,
-            ),
-          ),
+          context, 
+          MaterialPageRoute(builder: (context) => OtpVerificationView(lang: widget.lang, phoneNumber: phoneNumber))
         );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Erreur lors de l'envoi du code")),
-        );
+        _triggerErrorEffect();
       }
     } catch (e) {
-      dev.log("Erreur : $e");
-      if (context.mounted) {
-        Navigator.pop(context); // Fermer le chargement en cas d'erreur
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Erreur de connexion au serveur")),
-        );
-      }
+      if (mounted) Navigator.pop(context);
+      _triggerErrorEffect();
     }
+  }
+
+  void _showMethodSelector() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                widget.lang == "FR" ? "Recevoir le code via" : "Receive code via",
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 20),
+              ListTile(
+                leading: const Icon(Icons.sms, color: Colors.blue),
+                title: const Text("SMS"),
+                subtitle: Text(widget.lang == "FR" ? "(Bientôt disponible)" : "(Coming soon)"),
+                onTap: null, 
+              ),
+              const Divider(),
+              ListTile(
+                leading: const Icon(Icons.message, color: Colors.green),
+                title: const Text("WhatsApp"),
+                onTap: () => _sendOtpRequest("whatsapp"),
+              ),
+              const Divider(),
+              ListTile(
+                leading: const Icon(Icons.email, color: Colors.red),
+                title: const Text("Email"),
+                onTap: () => _sendOtpRequest("email"),
+              ),
+              const SizedBox(height: 20),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    String title = (lang == "FR") ? "Votre numéro ?" : "Mobile number ?";
-    String subtitle = (lang == "FR") 
-        ? "Nous allons vous envoyer un code de vérification" 
-        : "We'll send a verification code on this number";
-    String nextBtn = (lang == "FR") ? "Suivant ->" : "Next ->";
+    String title = (widget.lang == "FR") ? "Votre numéro ?" : "Mobile number ?";
+    String subtitle = (widget.lang == "FR") 
+        ? "Nous allons vous envoyer un code de vérification." 
+        : "We'll send a verification code.";
+    String errorMsg = (widget.lang == "FR") ? "Numéro incorrect" : "Incorrect number";
+    String nextBtnLabel = (widget.lang == "FR") ? "Suivant" : "Next";
+
+    Color feedbackColor = _hasError ? Colors.red : Colors.black;
 
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.black),
+        backgroundColor: Colors.white, 
+        elevation: 0, 
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.black), 
+          onPressed: () => Navigator.pop(context)
+        )
       ),
-      body: Center(
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 30),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(title, textAlign: TextAlign.center, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Color(0xFFE91E63))),
-                const SizedBox(height: 10),
-                Text(subtitle, textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey, fontSize: 16)),
-                const SizedBox(height: 40),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 5),
-                  decoration: BoxDecoration(color: Colors.grey[100], borderRadius: BorderRadius.circular(30)),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text("🇨🇲 +237", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                      const SizedBox(width: 10),
-                      Container(width: 1, height: 25, color: Colors.grey[300]),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: TextField(
-                          controller: _phoneController,
-                          keyboardType: TextInputType.phone,
-                          decoration: const InputDecoration(hintText: "657 97 28 21", border: InputBorder.none),
-                        ),
-                      ),
-                    ],
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 20),
+              Text(title, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 12),
+              Text(subtitle, style: TextStyle(color: Colors.grey[600], fontSize: 16)),
+              const SizedBox(height: 40),
+              
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2.0),
+                    child: Text("🇨🇲 +237", 
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: feedbackColor)),
                   ),
-                ),
-                const SizedBox(height: 40),
-                SizedBox(
-                  width: 200, height: 55,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      if (_phoneController.text.trim().length < 9) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text("Numéro invalide")),
-                        );
-                        return;
-                      }
-
-                      showDialog(
-                        context: context,
-                        builder: (dialogContext) => AlertDialog(
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                          title: Text(lang == "FR" ? "Recevoir le code via" : "Receive code via", textAlign: TextAlign.center),
-                          content: Column(
-                            mainAxisSize: MainAxisSize.min,
+                  const SizedBox(width: 20),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Stack(
+                          children: [
+                            TextField(
+                              controller: _phoneController,
+                              keyboardType: TextInputType.phone,
+                              autofocus: true,
+                              maxLength: 9,
+                              showCursor: false,
+                              style: const TextStyle(color: Colors.transparent),
+                              decoration: const InputDecoration(
+                                counterText: "", 
+                                border: InputBorder.none,
+                              ),
+                            ),
+                            IgnorePointer(
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: List.generate(9, (index) {
+                                  bool hasChar = _currentValue.length > index;
+                                  return Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        hasChar ? _currentValue[index] : "",
+                                        style: TextStyle(
+                                          fontSize: 22, 
+                                          fontWeight: FontWeight.bold,
+                                          color: feedbackColor,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      AnimatedContainer(
+                                        duration: const Duration(milliseconds: 300),
+                                        width: 20, 
+                                        height: 3,
+                                        color: _hasError 
+                                            ? Colors.red 
+                                            : (hasChar ? Colors.black : Colors.grey[300]),
+                                      ),
+                                    ],
+                                  );
+                                }),
+                              ),
+                            ),
+                          ],
+                        ),
+                        
+                        // --- MESSAGE D'ERREUR AVEC POINT D'EXCLAMATION ---
+                        const SizedBox(height: 10),
+                        AnimatedOpacity(
+                          opacity: _hasError ? 1.0 : 0.0,
+                          duration: const Duration(milliseconds: 300),
+                          child: Row(
                             children: [
-                              ListTile(
-                                leading: const Icon(Icons.sms, color: Colors.blue),
-                                title: const Text("SMS"),
-                                subtitle: Text(lang == "FR" ? "(Indisponible)" : "(Unavailable)"),
-                                onTap: null, // Désactivé
-                              ),
-                              ListTile(
-                                leading: const Icon(Icons.message, color: Colors.green),
-                                title: const Text("WhatsApp"),
-                                onTap: () => _sendOtpRequest(context, "whatsapp"),
-                              ),
-                              ListTile(
-                                leading: const Icon(Icons.email, color: Colors.red),
-                                title: const Text("Email"),
-                                onTap: () => _sendOtpRequest(context, "email"),
+                              const Icon(Icons.error_outline, color: Colors.red, size: 16),
+                              const SizedBox(width: 4),
+                              Text(
+                                errorMsg,
+                                style: const TextStyle(
+                                  color: Colors.red, 
+                                  fontSize: 14, 
+                                  fontWeight: FontWeight.w500
+                                ),
                               ),
                             ],
                           ),
                         ),
-                      );
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+
+              const Spacer(),
+
+              Align(
+                alignment: Alignment.bottomRight,
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 20.0),
+                  child: ElevatedButton(
+                    onPressed: () {
+                      if (_phoneController.text.trim().length < 9 || !_phoneController.text.trim().startsWith('6')) {
+                        _triggerErrorEffect(); 
+                        return;
+                      }
+                      _showMethodSelector();
                     },
-                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE91E63), shape: const StadiumBorder(), elevation: 0),
-                    child: Text(nextBtn, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _hasError ? Colors.red : brandPink,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(nextBtnLabel, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+                        const SizedBox(width: 10),
+                        const Icon(Icons.arrow_forward_rounded, size: 20),
+                      ],
+                    ),
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),

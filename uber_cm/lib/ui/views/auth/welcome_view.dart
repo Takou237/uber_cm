@@ -1,21 +1,25 @@
 // lib/ui/views/auth/welcome_view.dart
 import 'package:flutter/material.dart';
-import 'language_selection_view.dart';
-// Importation de TON dossier login
+import 'name_registration_view.dart'; 
 import 'login/login_view.dart'; 
 
-class WelcomeView extends StatelessWidget {
+class WelcomeView extends StatefulWidget {
   const WelcomeView({super.key});
 
   @override
+  State<WelcomeView> createState() => _WelcomeViewState();
+}
+
+class _WelcomeViewState extends State<WelcomeView> {
+  String _currentLang = 'FR';
+
+  @override
   Widget build(BuildContext context) {
-    // Couleur rose/rouge du bouton selon ton design
     const Color brandPink = Color(0xFFE91E63);
 
     return Scaffold(
       body: Stack(
         children: [
-          // Image d'arrière-plan
           Container(
             decoration: const BoxDecoration(
               image: DecorationImage(
@@ -24,31 +28,65 @@ class WelcomeView extends StatelessWidget {
               ),
             ),
           ),
-          // Dégradé noir pour assurer la lisibilité du texte blanc
+          
           Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
+                  Colors.black.withValues(alpha: 0.4),
                   Colors.transparent,
-                  Colors.black.withValues(alpha: 0.8),
+                  Colors.black.withValues(alpha: 0.9),
                 ],
+                stops: const [0.0, 0.4, 1.0],
               ),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 24.0,
-              vertical: 60.0,
+
+          Positioned(
+            top: 50,
+            right: 20,
+            child: PopupMenuButton<String>(
+              onSelected: (String lang) {
+                setState(() {
+                  _currentLang = lang;
+                });
+              },
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.2),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.5),
+                    width: 1.5,
+                  ),
+                ),
+                child: const Icon(
+                  Icons.language,
+                  color: Colors.white,
+                  size: 26,
+                ),
+              ),
+              itemBuilder: (context) => [
+                const PopupMenuItem(value: 'FR', child: Text("🇫🇷 Français")),
+                const PopupMenuItem(value: 'EN', child: Text("🇺🇸 English")),
+              ],
             ),
+          ),
+
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 60.0),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.end,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  "Restez en sécurité\ntout au long de\nvotre trajet.",
-                  style: TextStyle(
+                Text(
+                  _currentLang == 'FR' 
+                      ? "Restez en sécurité\ntout au long de\nvotre trajet."
+                      : "Stay safe\nall along\nyour journey.",
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 32,
                     fontWeight: FontWeight.bold,
@@ -56,13 +94,14 @@ class WelcomeView extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 16),
-                const Text(
-                  "Faites-vous de l’argent en aidant les passagers à arriver à leur destination.",
-                  style: TextStyle(color: Colors.white, fontSize: 16),
+                Text(
+                  _currentLang == 'FR'
+                      ? "Faites-vous de l’argent en aidant les passagers à arriver à leur destination."
+                      : "Earn money by helping passengers reach their destination.",
+                  style: const TextStyle(color: Colors.white, fontSize: 16),
                 ),
                 const SizedBox(height: 40),
 
-                // BOUTON : Créer un compte
                 SizedBox(
                   width: double.infinity,
                   height: 56,
@@ -71,19 +110,22 @@ class WelcomeView extends StatelessWidget {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => const LanguageSelectionView(),
+                          builder: (context) => NameRegistrationView(
+                            lang: _currentLang, 
+                          ),
                         ),
                       );
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: brandPink,
+                      elevation: 0,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    child: const Text(
-                      "Créer un compte",
-                      style: TextStyle(
+                    child: Text(
+                      _currentLang == 'FR' ? "Créer un compte" : "Create account",
+                      style: const TextStyle(
                         fontSize: 18,
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
@@ -93,32 +135,40 @@ class WelcomeView extends StatelessWidget {
                 ),
                 const SizedBox(height: 20),
 
-                // LIEN : Connexion (SANS TRAIT EN BAS)
                 Center(
                   child: TextButton(
                     onPressed: () {
+                      // --- CORRECTION ICI ---
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => const LoginView(),
+                          // On enlève 'const' et on ajoute 'lang'
+                          builder: (context) => LoginView(lang: _currentLang),
                         ),
                       );
                     },
-                    child: RichText(
-                      text: const TextSpan(
-                        text: "Vous avez déjà un compte ? ",
-                        style: TextStyle(color: Colors.white, fontSize: 15),
-                        children: [
-                          TextSpan(
-                            text: "Connexion ->",
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                              // Le trait de décoration a été supprimé ici
-                            ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _currentLang == 'FR' ? "Vous avez déjà un compte ? " : "Already have an account? ",
+                          style: const TextStyle(color: Colors.white70, fontSize: 15),
+                        ),
+                        Text(
+                          _currentLang == 'FR' ? "Connexion" : "Login",
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                            fontSize: 15,
                           ),
-                        ],
-                      ),
+                        ),
+                        const SizedBox(width: 6),
+                        const Icon(
+                          Icons.arrow_forward_rounded,
+                          color: Colors.white,
+                          size: 18,
+                        ),
+                      ],
                     ),
                   ),
                 ),
