@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'otp_view.dart'; 
+import 'otp_view.dart';
 
 class LoginView extends StatefulWidget {
   const LoginView({super.key});
@@ -12,17 +12,24 @@ class LoginView extends StatefulWidget {
 class _LoginViewState extends State<LoginView> {
   final Color brandPink = const Color(0xFFE91E63); // Rose comme ton exemple
   final Color pBlue = const Color(0xFF1A237E); // Bleu pour les traits remplis
-  
-  final List<TextEditingController> _controllers = List.generate(9, (index) => TextEditingController());
+
+  final List<TextEditingController> _controllers = List.generate(
+    9,
+    (index) => TextEditingController(),
+  );
   final List<FocusNode> _focusNodes = List.generate(9, (index) => FocusNode());
-  
+
   bool _isError = false;
   String _errorMessage = "";
 
   @override
   void dispose() {
-    for (var c in _controllers) c.dispose();
-    for (var f in _focusNodes) f.dispose();
+    for (var c in _controllers) {
+      c.dispose();
+    }
+    for (var f in _focusNodes) {
+      f.dispose();
+    }
     super.dispose();
   }
 
@@ -56,7 +63,8 @@ class _LoginViewState extends State<LoginView> {
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.black),
       ),
-      body: Center( // Centrage vertical total
+      body: Center(
+        // Centrage vertical total
         child: SingleChildScrollView(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -88,14 +96,20 @@ class _LoginViewState extends State<LoginView> {
                   children: [
                     // Indicatif pays stylisé
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 8,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.grey[100],
                         borderRadius: BorderRadius.circular(15),
                       ),
                       child: const Text(
                         "🇨🇲 +237",
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -110,7 +124,11 @@ class _LoginViewState extends State<LoginView> {
                     padding: const EdgeInsets.only(top: 20),
                     child: Text(
                       _errorMessage,
-                      style: const TextStyle(color: Colors.red, fontSize: 13, fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                        color: Colors.red,
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
 
@@ -177,7 +195,7 @@ class _LoginViewState extends State<LoginView> {
           } else if (v.isEmpty && index > 0) {
             _focusNodes[index - 1].requestFocus();
           }
-          setState(() {}); 
+          setState(() {});
         },
         decoration: const InputDecoration(
           border: InputBorder.none,

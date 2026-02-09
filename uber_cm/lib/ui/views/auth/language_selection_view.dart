@@ -114,7 +114,7 @@ class _LanguageSelectionViewState extends State<LanguageSelectionView> {
         padding: const EdgeInsets.all(15),
         decoration: BoxDecoration(
           color: isSelected
-              ? const Color(0xFFE91E63).withOpacity(0.05)
+              ? const Color(0xFFE91E63).withValues(alpha: .05)
               : Colors.grey[100],
           borderRadius: BorderRadius.circular(30),
           border: Border.all(
