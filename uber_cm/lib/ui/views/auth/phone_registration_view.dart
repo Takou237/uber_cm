@@ -1,5 +1,6 @@
 // lib/ui/views/auth/phone_registration_view.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'otp_verification_view.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -43,19 +44,31 @@ class _PhoneRegistrationViewState extends State<PhoneRegistrationView> {
     super.dispose();
   }
 
-  // --- LOGIQUE DU FLASH ROUGE TEMPORAIRE ---
   void _triggerErrorEffect() {
     setState(() => _hasError = true);
     Future.delayed(const Duration(milliseconds: 2000), () {
-      if (mounted) {
-        setState(() => _hasError = false);
-      }
+      if (mounted) setState(() => _hasError = false);
     });
   }
 
+  // --- LOGIQUE DE NAVIGATION ---
+  void _navigateToOtp(String phone) {
+    Navigator.push(
+      context, 
+      MaterialPageRoute(
+        builder: (context) => OtpVerificationView(
+          lang: widget.lang, 
+          phoneNumber: phone
+        )
+      )
+    );
+  }
+
+  // --- APPEL API AVEC BYPASS DE SÉCURITÉ ---
   Future<void> _sendOtpRequest(String method) async {
     final String phoneNumber = "+237${_phoneController.text.trim()}";
-    Navigator.pop(context); 
+    
+    Navigator.pop(context); // Fermer le sélecteur
 
     showDialog(
       context: context,
@@ -64,6 +77,7 @@ class _PhoneRegistrationViewState extends State<PhoneRegistrationView> {
     );
 
     try {
+      // TENTATIVE DE CONNEXION AU BACKEND
       final response = await http.post(
         Uri.parse('http://172.30.7.48:5000/api/auth/request-otp'),
         headers: {"Content-Type": "application/json"},
@@ -73,65 +87,82 @@ class _PhoneRegistrationViewState extends State<PhoneRegistrationView> {
           "email": widget.userEmail,
           "method": method,
         }),
-      );
+      ).timeout(const Duration(seconds: 5)); // Timeout court pour le dev
 
       if (!mounted) return;
-      Navigator.pop(context); 
+      Navigator.pop(context); // Fermer le loader
 
       if (response.statusCode == 200) {
-        Navigator.push(
-          context, 
-          MaterialPageRoute(builder: (context) => OtpVerificationView(lang: widget.lang, phoneNumber: phoneNumber))
-        );
+        _navigateToOtp(phoneNumber);
       } else {
-        _triggerErrorEffect();
+        _handleRequestFailure(phoneNumber, "Erreur ${response.statusCode}");
       }
     } catch (e) {
-      if (mounted) Navigator.pop(context);
-      _triggerErrorEffect();
+      if (mounted) Navigator.pop(context); // Fermer le loader
+      _handleRequestFailure(phoneNumber, "Serveur injoignable");
+      print("Détails de l'erreur: $e");
     }
   }
 
+  void _handleRequestFailure(String phone, String reason) {
+    _triggerErrorEffect();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text("$reason. Voulez-vous passer en mode test ?"),
+        duration: const Duration(seconds: 5),
+        action: SnackBarAction(
+          label: "OUI",
+          textColor: Colors.white,
+          onPressed: () => _navigateToOtp(phone),
+        ),
+        backgroundColor: Colors.black87,
+      ),
+    );
+  }
+
+  // --- SÉLECTEUR DE MÉTHODE STYLÉ ---
   void _showMethodSelector() {
     showModalBottomSheet(
       context: context,
+      backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (context) {
         return Container(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 24),
+                decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(10)),
+              ),
               Text(
                 widget.lang == "FR" ? "Recevoir le code via" : "Receive code via",
                 style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 20),
-              ListTile(
-                leading: const Icon(Icons.sms, color: Colors.blue),
-                title: const Text("SMS"),
-                subtitle: Text(widget.lang == "FR" ? "(Bientôt disponible)" : "(Coming soon)"),
-                onTap: null, 
-              ),
+              _methodTile(Icons.sms, "SMS", Colors.blue, "sms"),
               const Divider(),
-              ListTile(
-                leading: const Icon(Icons.message, color: Colors.green),
-                title: const Text("WhatsApp"),
-                onTap: () => _sendOtpRequest("whatsapp"),
-              ),
+              _methodTile(Icons.message, "WhatsApp", Colors.green, "whatsapp"),
               const Divider(),
-              ListTile(
-                leading: const Icon(Icons.email, color: Colors.red),
-                title: const Text("Email"),
-                onTap: () => _sendOtpRequest("email"),
-              ),
+              _methodTile(Icons.email, "Email", Colors.red, "email"),
               const SizedBox(height: 20),
             ],
           ),
         );
       },
+    );
+  }
+
+  Widget _methodTile(IconData icon, String title, Color color, String method) {
+    return ListTile(
+      leading: Icon(icon, color: color),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w500)),
+      onTap: () => _sendOtpRequest(method),
     );
   }
 
@@ -157,137 +188,133 @@ class _PhoneRegistrationViewState extends State<PhoneRegistrationView> {
         )
       ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 20),
-              Text(title, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 12),
-              Text(subtitle, style: TextStyle(color: Colors.grey[600], fontSize: 16)),
-              const SizedBox(height: 40),
-              
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(top: 2.0),
-                    child: Text("🇨🇲 +237", 
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: feedbackColor)),
-                  ),
-                  const SizedBox(width: 20),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Stack(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24.0),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: IntrinsicHeight(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      const SizedBox(height: 20),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(title, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold))
+                      ),
+                      const SizedBox(height: 12),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(subtitle, style: TextStyle(color: Colors.grey[600], fontSize: 16, height: 1.4))
+                      ),
+                      
+                      const SizedBox(height: 60),
+                      
+                      // ZONE SAISIE
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text("🇨🇲 +237", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: feedbackColor)),
+                          const SizedBox(width: 15),
+                          SizedBox(
+                            width: 185, 
+                            child: Stack(
+                              alignment: Alignment.centerLeft,
+                              children: [
+                                TextField(
+                                  controller: _phoneController,
+                                  keyboardType: TextInputType.phone,
+                                  autofocus: true,
+                                  maxLength: 9,
+                                  showCursor: false,
+                                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                                  style: const TextStyle(color: Colors.transparent),
+                                  decoration: const InputDecoration(counterText: "", border: InputBorder.none),
+                                ),
+                                IgnorePointer(
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: List.generate(9, (index) {
+                                      bool hasChar = _currentValue.length > index;
+                                      return Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            hasChar ? _currentValue[index] : "",
+                                            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: feedbackColor),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          AnimatedContainer(
+                                            duration: const Duration(milliseconds: 300),
+                                            width: 16,
+                                            height: 3,
+                                            color: _hasError ? Colors.red : (hasChar ? Colors.black : Colors.grey[200]),
+                                          ),
+                                        ],
+                                      );
+                                    }),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      
+                      const SizedBox(height: 25),
+
+                      AnimatedOpacity(
+                        opacity: _hasError ? 1.0 : 0.0,
+                        duration: const Duration(milliseconds: 300),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            TextField(
-                              controller: _phoneController,
-                              keyboardType: TextInputType.phone,
-                              autofocus: true,
-                              maxLength: 9,
-                              showCursor: false,
-                              style: const TextStyle(color: Colors.transparent),
-                              decoration: const InputDecoration(
-                                counterText: "", 
-                                border: InputBorder.none,
-                              ),
-                            ),
-                            IgnorePointer(
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: List.generate(9, (index) {
-                                  bool hasChar = _currentValue.length > index;
-                                  return Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text(
-                                        hasChar ? _currentValue[index] : "",
-                                        style: TextStyle(
-                                          fontSize: 22, 
-                                          fontWeight: FontWeight.bold,
-                                          color: feedbackColor,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      AnimatedContainer(
-                                        duration: const Duration(milliseconds: 300),
-                                        width: 20, 
-                                        height: 3,
-                                        color: _hasError 
-                                            ? Colors.red 
-                                            : (hasChar ? Colors.black : Colors.grey[300]),
-                                      ),
-                                    ],
-                                  );
-                                }),
-                              ),
-                            ),
+                            const Icon(Icons.error_outline, color: Colors.red, size: 16),
+                            const SizedBox(width: 6),
+                            Text(errorMsg, style: const TextStyle(color: Colors.red, fontSize: 14, fontWeight: FontWeight.w500)),
                           ],
                         ),
-                        
-                        // --- MESSAGE D'ERREUR AVEC POINT D'EXCLAMATION ---
-                        const SizedBox(height: 10),
-                        AnimatedOpacity(
-                          opacity: _hasError ? 1.0 : 0.0,
-                          duration: const Duration(milliseconds: 300),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.error_outline, color: Colors.red, size: 16),
-                              const SizedBox(width: 4),
-                              Text(
-                                errorMsg,
-                                style: const TextStyle(
-                                  color: Colors.red, 
-                                  fontSize: 14, 
-                                  fontWeight: FontWeight.w500
-                                ),
-                              ),
-                            ],
+                      ),
+
+                      const Spacer(),
+
+                      Align(
+                        alignment: Alignment.bottomRight,
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: 20.0, top: 20),
+                          child: ElevatedButton(
+                            onPressed: () {
+                              if (_phoneController.text.trim().length < 9) {
+                                _triggerErrorEffect(); 
+                                return;
+                              }
+                              _showMethodSelector();
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _hasError ? Colors.red : brandPink,
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(nextBtnLabel, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+                                const SizedBox(width: 10),
+                                const Icon(Icons.arrow_forward_rounded, size: 20),
+                              ],
+                            ),
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-
-              const Spacer(),
-
-              Align(
-                alignment: Alignment.bottomRight,
-                child: Padding(
-                  padding: const EdgeInsets.only(bottom: 20.0),
-                  child: ElevatedButton(
-                    onPressed: () {
-                      if (_phoneController.text.trim().length < 9 || !_phoneController.text.trim().startsWith('6')) {
-                        _triggerErrorEffect(); 
-                        return;
-                      }
-                      _showMethodSelector();
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _hasError ? Colors.red : brandPink,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(nextBtnLabel, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
-                        const SizedBox(width: 10),
-                        const Icon(Icons.arrow_forward_rounded, size: 20),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
               ),
-            ],
-          ),
+            );
+          },
         ),
       ),
     );

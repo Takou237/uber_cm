@@ -1,3 +1,4 @@
+// lib/ui/views/auth/login/login_view.dart
 import 'package:flutter/material.dart';
 import 'otp_view.dart'; 
 
@@ -13,7 +14,6 @@ class _LoginViewState extends State<LoginView> {
   final Color brandPink = const Color(0xFFE91E63);
   final TextEditingController _phoneController = TextEditingController();
   String _currentValue = "";
-  
   bool _hasError = false;
 
   @override
@@ -36,25 +36,38 @@ class _LoginViewState extends State<LoginView> {
   void _triggerErrorEffect() {
     setState(() => _hasError = true);
     Future.delayed(const Duration(milliseconds: 2000), () {
-      if (mounted) {
-        setState(() => _hasError = false);
-      }
+      if (mounted) setState(() => _hasError = false);
     });
   }
 
+  // --- SÉLECTEUR DE MÉTHODE CORRIGÉ ---
   void _showMethodSelector() {
     String title = widget.lang == "FR" ? "Recevoir le code via" : "Receive code via";
     showModalBottomSheet(
       context: context,
+      backgroundColor: Colors.white, 
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (context) {
         return Container(
-          padding: const EdgeInsets.all(24),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 20), // Correction EdgeInsets
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
               Text(
                 title,
                 style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -62,16 +75,16 @@ class _LoginViewState extends State<LoginView> {
               const SizedBox(height: 20),
               ListTile(
                 leading: const Icon(Icons.sms, color: Colors.blue),
-                title: const Text("SMS"),
+                title: const Text("SMS", style: TextStyle(fontWeight: FontWeight.w500)),
                 onTap: () {
                   Navigator.pop(context);
                   _navigateToOtp();
                 },
               ),
-              const Divider(),
+              const Divider(height: 1),
               ListTile(
                 leading: const Icon(Icons.chat, color: Colors.green),
-                title: const Text("WhatsApp"),
+                title: const Text("WhatsApp", style: TextStyle(fontWeight: FontWeight.w500)),
                 onTap: () {
                   Navigator.pop(context);
                   _navigateToOtp();
@@ -87,16 +100,14 @@ class _LoginViewState extends State<LoginView> {
 
   void _navigateToOtp() {
     Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => OtpView(lang: widget.lang),
-      ),
+      context, 
+      MaterialPageRoute(builder: (context) => OtpView(lang: widget.lang))
     );
   }
 
   void _handleNextStep() {
-    String phoneNumber = _phoneController.text.trim();
-    if (phoneNumber.length < 9 || !phoneNumber.startsWith('6')) {
+    String val = _phoneController.text.trim();
+    if (val.length < 9 || !val.startsWith('6')) {
       _triggerErrorEffect();
       return;
     }
@@ -128,27 +139,32 @@ class _LoginViewState extends State<LoginView> {
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24.0),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               const SizedBox(height: 20),
-              Text(title, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(title, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold))
+              ),
               const SizedBox(height: 12),
-              Text(subtitle, style: TextStyle(color: Colors.grey[600], fontSize: 16)),
-              const SizedBox(height: 40),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(subtitle, style: TextStyle(color: Colors.grey[600], fontSize: 16))
+              ),
+              
+              const SizedBox(height: 60),
 
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              Column(
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.only(top: 2.0),
-                    child: Text("🇨🇲 +237", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: feedbackColor)),
-                  ),
-                  const SizedBox(width: 20),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Stack(
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text("🇨🇲 +237", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: feedbackColor)),
+                      const SizedBox(width: 15),
+                      SizedBox(
+                        width: 185, 
+                        child: Stack(
+                          alignment: Alignment.centerLeft,
                           children: [
                             TextField(
                               controller: _phoneController,
@@ -174,9 +190,11 @@ class _LoginViewState extends State<LoginView> {
                                       const SizedBox(height: 4),
                                       AnimatedContainer(
                                         duration: const Duration(milliseconds: 300),
-                                        width: 22,
+                                        width: 16,
                                         height: 3,
-                                        color: _hasError ? Colors.red : (hasChar ? Colors.black : Colors.grey[300]),
+                                        color: _hasError 
+                                            ? Colors.red 
+                                            : (hasChar ? Colors.black : Colors.grey[200]),
                                       ),
                                     ],
                                   );
@@ -185,29 +203,32 @@ class _LoginViewState extends State<LoginView> {
                             ),
                           ],
                         ),
-                        
-                        // --- ZONE ERREUR AVEC ICÔNE ---
-                        const SizedBox(height: 10),
-                        AnimatedOpacity(
-                          opacity: _hasError ? 1.0 : 0.0,
-                          duration: const Duration(milliseconds: 300),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.error_outline, color: Colors.red, size: 16),
-                              const SizedBox(width: 4),
-                              Text(
-                                errorMsg,
-                                style: const TextStyle(color: Colors.red, fontSize: 14, fontWeight: FontWeight.w500),
-                              ),
-                            ],
-                          ),
+                      ),
+                    ],
+                  ),
+                  
+                  const SizedBox(height: 25),
+
+                  AnimatedOpacity(
+                    opacity: _hasError ? 1.0 : 0.0,
+                    duration: const Duration(milliseconds: 300),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.error_outline, color: Colors.red, size: 16),
+                        const SizedBox(width: 6),
+                        Text(
+                          errorMsg,
+                          style: const TextStyle(color: Colors.red, fontSize: 14, fontWeight: FontWeight.w500),
                         ),
                       ],
                     ),
                   ),
                 ],
               ),
+
               const Spacer(),
+
               Align(
                 alignment: Alignment.bottomRight,
                 child: Padding(

@@ -1,6 +1,7 @@
 // lib/ui/views/auth/login/otp_view.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../home/home_view.dart'; 
 
 class OtpView extends StatefulWidget {
   final String lang;
@@ -15,6 +16,7 @@ class _OtpViewState extends State<OtpView> {
   final TextEditingController _otpController = TextEditingController();
   String _currentValue = "";
   bool _hasError = false;
+  bool _isLoading = false; // Ajouté pour gérer l'état de chargement
 
   @override
   void initState() {
@@ -40,11 +42,43 @@ class _OtpViewState extends State<OtpView> {
     });
   }
 
-  void _validateOtp() {
+  // --- LOGIQUE DE NAVIGATION VERS HOME ---
+  void _navigateToHome() {
+    Navigator.pushAndRemoveUntil(
+      context, 
+      MaterialPageRoute(builder: (context) => HomeView(lang: widget.lang)),
+      (route) => false, // Nettoie toute la pile d'écrans
+    );
+  }
+
+  Future<void> _validateOtp() async {
     if (_otpController.text.length < 4) {
       _triggerErrorEffect();
-    } else {
-      print("OTP Validé: ${_otpController.text}");
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      // Simulation ou Appel API réel ici
+      // await http.post(...) 
+      
+      // Si succès :
+      if (mounted) {
+        setState(() => _isLoading = false);
+        _navigateToHome();
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isLoading = false);
+      _triggerErrorEffect();
+      
+      // Mode secours pour tes tests
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text("Erreur serveur. Forcer l'accès ?"),
+          action: SnackBarAction(label: "OUI", onPressed: _navigateToHome),
+        ),
+      );
     }
   }
 
@@ -71,131 +105,151 @@ class _OtpViewState extends State<OtpView> {
         ),
       ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 20),
-              Text(title, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 12),
-              Text(subtitle, style: TextStyle(color: Colors.grey[600], fontSize: 16, height: 1.4)),
-              const SizedBox(height: 40),
-
-              // ZONE OTP CENTRÉE
-              Stack(
-                alignment: Alignment.centerLeft,
-                children: [
-                  TextField(
-                    controller: _otpController,
-                    keyboardType: TextInputType.number,
-                    autofocus: true,
-                    maxLength: 4,
-                    showCursor: false,
-                    style: const TextStyle(color: Colors.transparent),
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    decoration: const InputDecoration(
-                      counterText: "",
-                      border: InputBorder.none,
-                    ),
-                  ),
-                  IgnorePointer(
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center, // CENTRE LES BARRES
-                      children: List.generate(4, (index) {
-                        bool hasChar = _currentValue.length > index;
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 10.0), // ESPACE ENTRE BARRES
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                hasChar ? _currentValue[index] : "",
-                                style: TextStyle(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.bold,
-                                  color: feedbackColor,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              AnimatedContainer(
-                                duration: const Duration(milliseconds: 300),
-                                width: 45, 
-                                height: 3,
-                                color: _hasError 
-                                    ? Colors.red 
-                                    : (hasChar ? Colors.black : Colors.grey[300]),
-                              ),
-                            ],
-                          ),
-                        );
-                      }),
-                    ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 15),
-
-              // MESSAGE D'ERREUR (ALIGNE AVEC LE RESTE)
-              AnimatedOpacity(
-                opacity: _hasError ? 1.0 : 0.0,
-                duration: const Duration(milliseconds: 300),
-                child: Center( // On centre aussi le message d'erreur pour suivre les barres
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24.0),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: IntrinsicHeight(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      const Icon(Icons.error_outline, color: Colors.red, size: 16),
-                      const SizedBox(width: 4),
-                      Text(
-                        errorMsg,
-                        style: const TextStyle(color: Colors.red, fontSize: 14, fontWeight: FontWeight.w500),
+                      const SizedBox(height: 20),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(title, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold))
+                      ),
+                      const SizedBox(height: 12),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(subtitle, style: TextStyle(color: Colors.grey[600], fontSize: 16, height: 1.4))
+                      ),
+                      
+                      const SizedBox(height: 60),
+
+                      // ZONE OTP
+                      Column(
+                        children: [
+                          SizedBox(
+                            width: double.infinity,
+                            child: Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                TextField(
+                                  controller: _otpController,
+                                  keyboardType: TextInputType.number,
+                                  autofocus: true,
+                                  maxLength: 4,
+                                  showCursor: false,
+                                  style: const TextStyle(color: Colors.transparent),
+                                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                                  decoration: const InputDecoration(
+                                    counterText: "",
+                                    border: InputBorder.none,
+                                  ),
+                                ),
+                                IgnorePointer(
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: List.generate(4, (index) {
+                                      bool hasChar = _currentValue.length > index;
+                                      return Padding(
+                                        padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                              hasChar ? _currentValue[index] : "",
+                                              style: TextStyle(
+                                                fontSize: 28,
+                                                fontWeight: FontWeight.bold,
+                                                color: feedbackColor,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 8),
+                                            AnimatedContainer(
+                                              duration: const Duration(milliseconds: 300),
+                                              width: 40, 
+                                              height: 3,
+                                              color: _hasError 
+                                                  ? Colors.red 
+                                                  : (hasChar ? Colors.black : Colors.grey[200]),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    }),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          
+                          const SizedBox(height: 24),
+
+                          AnimatedOpacity(
+                            opacity: _hasError ? 1.0 : 0.0,
+                            duration: const Duration(milliseconds: 300),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.error_outline, color: Colors.red, size: 16),
+                                const SizedBox(width: 6),
+                                Text(
+                                  errorMsg,
+                                  style: const TextStyle(color: Colors.red, fontSize: 14, fontWeight: FontWeight.w500),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 30),
+
+                      TextButton(
+                        onPressed: _isLoading ? null : () {},
+                        child: Text(
+                          resendText,
+                          style: TextStyle(color: brandPink, fontWeight: FontWeight.bold, fontSize: 15),
+                        ),
+                      ),
+
+                      const Spacer(),
+
+                      Align(
+                        alignment: Alignment.bottomRight,
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: 20.0, top: 20.0),
+                          child: ElevatedButton(
+                            onPressed: _isLoading ? null : _validateOtp,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _hasError ? Colors.red : brandPink,
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                            ),
+                            child: _isLoading 
+                              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                              : Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(confirmBtn, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+                                    const SizedBox(width: 10),
+                                    const Icon(Icons.arrow_forward_rounded, size: 20),
+                                  ],
+                                ),
+                          ),
+                        ),
                       ),
                     ],
                   ),
                 ),
               ),
-
-              const SizedBox(height: 25),
-
-              Center( // On centre le bouton "Renvoyer"
-                child: TextButton(
-                  onPressed: () {},
-                  child: Text(
-                    resendText,
-                    style: TextStyle(color: brandPink, fontWeight: FontWeight.bold, fontSize: 15),
-                  ),
-                ),
-              ),
-
-              const Spacer(),
-
-              Align(
-                alignment: Alignment.bottomRight,
-                child: Padding(
-                  padding: const EdgeInsets.only(bottom: 20.0),
-                  child: ElevatedButton(
-                    onPressed: _validateOtp,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _hasError ? Colors.red : brandPink,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(confirmBtn, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
-                        const SizedBox(width: 10),
-                        const Icon(Icons.arrow_forward_rounded, size: 20),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
+            );
+          },
         ),
       ),
     );

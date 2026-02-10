@@ -18,11 +18,8 @@ class _NameRegistrationViewState extends State<NameRegistrationView> {
 
   void _triggerErrorEffect() {
     setState(() => _hasError = true);
-    
     Future.delayed(const Duration(milliseconds: 2000), () {
-      if (mounted) {
-        setState(() => _hasError = false);
-      }
+      if (mounted) setState(() => _hasError = false);
     });
   }
 
@@ -53,7 +50,6 @@ class _NameRegistrationViewState extends State<NameRegistrationView> {
     String nextBtnLabel = (widget.lang == "FR") ? "Suivant" : "Next";
     String hintText = (widget.lang == "FR") ? "ex: Jean Douala" : "e.g. John Doe";
 
-    // Le texte du champ devient rouge, mais pas de trait
     Color feedbackColor = _hasError ? Colors.red : Colors.black;
 
     return Scaffold(
@@ -70,34 +66,44 @@ class _NameRegistrationViewState extends State<NameRegistrationView> {
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24.0),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center, // Centralisation globale
             children: [
               const SizedBox(height: 20),
-              Text(
-                title,
-                style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  title,
+                  style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
+                ),
               ),
               const SizedBox(height: 12),
-              Text(
-                subtitle,
-                style: TextStyle(color: Colors.grey[600], fontSize: 16, height: 1.4),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  subtitle,
+                  style: TextStyle(color: Colors.grey[600], fontSize: 16, height: 1.4),
+                ),
               ),
-              const SizedBox(height: 40),
               
+              const SizedBox(height: 60), // Alignement avec les autres écrans
+              
+              // --- ZONE NOM CENTRALISÉE ---
               Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   TextField(
                     controller: _nameController,
                     autofocus: true,
+                    textAlign: TextAlign.center, // Texte saisi centré
                     textCapitalization: TextCapitalization.words,
-                    style: TextStyle(fontSize: 19, color: feedbackColor, fontWeight: FontWeight.w500),
+                    style: TextStyle(
+                      fontSize: 22, 
+                      color: feedbackColor, 
+                      fontWeight: FontWeight.w500
+                    ),
                     decoration: InputDecoration(
                       hintText: hintText,
                       hintStyle: TextStyle(color: Colors.grey[400]), 
                       border: InputBorder.none,
-                      enabledBorder: InputBorder.none,
-                      focusedBorder: InputBorder.none,
                       contentPadding: EdgeInsets.zero,
                     ),
                     onChanged: (val) {
@@ -105,17 +111,17 @@ class _NameRegistrationViewState extends State<NameRegistrationView> {
                     },
                   ),
                   
-                  // --- PLUS DE TRAIT ICI (Invisible en tout temps) ---
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 20),
 
-                  // --- ZONE ERREUR AVEC ICÔNE ---
+                  // --- ZONE ERREUR CENTRALISÉE ---
                   AnimatedOpacity(
                     opacity: _hasError ? 1.0 : 0.0,
                     duration: const Duration(milliseconds: 300),
                     child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center, // Erreur centrée
                       children: [
                         const Icon(Icons.error_outline, color: Colors.red, size: 16),
-                        const SizedBox(width: 4),
+                        const SizedBox(width: 6),
                         Text(
                           errorMsg,
                           style: const TextStyle(

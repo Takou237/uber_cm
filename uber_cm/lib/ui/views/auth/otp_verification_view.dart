@@ -1,12 +1,13 @@
+// lib/ui/views/auth/otp_verification_view.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'dart:developer' as dev;
+import '../home/home_view.dart'; 
 
 class OtpVerificationView extends StatefulWidget {
   final String lang;
-  // On récupère le téléphone pour savoir quel utilisateur vérifier au backend
-  final String? phoneNumber; 
+  final String? phoneNumber;
 
   const OtpVerificationView({super.key, required this.lang, this.phoneNumber});
 
@@ -15,168 +16,264 @@ class OtpVerificationView extends StatefulWidget {
 }
 
 class _OtpVerificationViewState extends State<OtpVerificationView> {
-  bool hasError = false;
-  bool isLoading = false;
+  final Color brandPink = const Color(0xFFE91E63);
+  final TextEditingController _otpController = TextEditingController();
+  String _currentValue = "";
+  bool _hasError = false;
+  bool _isLoading = false;
 
-  // Liste pour stocker les chiffres saisis dans les 6 cases
-  final List<String> _otpValues = List.filled(6, "");
+  @override
+  void initState() {
+    super.initState();
+    _otpController.addListener(() {
+      setState(() {
+        _currentValue = _otpController.text;
+        if (_hasError) _hasError = false;
+      });
+    });
+  }
 
-  // Fonction pour envoyer le code au serveur Node.js
+  @override
+  void dispose() {
+    _otpController.dispose();
+    super.dispose();
+  }
+
+  void _triggerErrorEffect() {
+    setState(() => _hasError = true);
+    Future.delayed(const Duration(milliseconds: 2000), () {
+      if (mounted) setState(() => _hasError = false);
+    });
+  }
+
   Future<void> _verifyOtp() async {
-    // On rassemble les chiffres (on prend les 4 premiers car ton backend génère 4 chiffres)
-    String codeSaisi = _otpValues.join("").substring(0, 4);
-
-    if (codeSaisi.length < 4) {
-      setState(() => hasError = true);
+    if (_otpController.text.length < 4) {
+      _triggerErrorEffect();
       return;
     }
 
-    setState(() {
-      isLoading = true;
-      hasError = false;
-    });
+    setState(() => _isLoading = true);
 
     try {
       final response = await http.post(
         Uri.parse('http://172.30.7.48:5000/api/auth/verify-otp'),
         headers: {"Content-Type": "application/json"},
         body: jsonEncode({
-          "phone": widget.phoneNumber ?? "", // Le numéro envoyé depuis la page précédente
-          "code": codeSaisi
+          "phone": widget.phoneNumber ?? "",
+          "code": _otpController.text.trim()
         }),
-      );
+      ).timeout(const Duration(seconds: 10));
 
       if (!mounted) return;
+      setState(() => _isLoading = false);
 
       if (response.statusCode == 200) {
-        // SUCCÈS : Navigation vers l'accueil (à créer)
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(widget.lang == "FR" ? "Connexion réussie !" : "Login successful!")),
+        // --- NAVIGATION VERS HOME ---
+        // pushAndRemoveUntil empêche l'utilisateur de revenir en arrière vers l'OTP
+        Navigator.pushAndRemoveUntil(
+          context, 
+          MaterialPageRoute(builder: (context) => HomeView(lang: widget.lang)),
+          (route) => false,
         );
-        // Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (context) => HomeView()), (route) => false);
       } else {
-        setState(() => hasError = true);
+        _triggerErrorEffect();
       }
     } catch (e) {
-      dev.log("Erreur de vérification OTP: $e");
-      setState(() => hasError = true);
-    } finally {
-      setState(() => isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
+      _triggerErrorEffect();
+      
+      // OPTIONNEL : Mode secours si le backend échoue pendant tes tests
+      _showBypassOption();
     }
+  }
+
+  // Permet de passer à la Home même si le serveur ne répond pas (utile pour le dev)
+  void _showBypassOption() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text("Erreur connexion. Forcer l'accès ?"),
+        action: SnackBarAction(
+          label: "OUI",
+          onPressed: () {
+            Navigator.pushAndRemoveUntil(
+              context, 
+              MaterialPageRoute(builder: (context) => HomeView(lang: widget.lang)),
+              (route) => false,
+            );
+          },
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     String title = (widget.lang == "FR") ? "Vérification" : "Verification";
     String subtitle = (widget.lang == "FR")
-        ? "Entrez le code envoyé au ${widget.phoneNumber ?? '+237...'}"
-        : "Enter the code sent to ${widget.phoneNumber ?? '+237...'}";
-    String verifyBtn = (widget.lang == "FR") ? "Vérifier" : "Verify";
-    String resendBtn = (widget.lang == "FR") ? "Renvoyer le code" : "Resend code";
-    String errorMsg = (widget.lang == "FR")
-        ? "Code incorrect. Veuillez réessayer."
-        : "Invalid code. Please try again.";
+        ? "Saisissez le code à 4 chiffres envoyé au ${widget.phoneNumber ?? ''}"
+        : "Enter the 4-digit code sent to ${widget.phoneNumber ?? ''}";
+    String resendText = (widget.lang == "FR") ? "Renvoyer le code" : "Resend code";
+    String confirmBtn = (widget.lang == "FR") ? "Confirmer" : "Confirm";
+    String errorMsg = (widget.lang == "FR") ? "Code incorrect" : "Invalid code";
+
+    Color feedbackColor = _hasError ? Colors.red : Colors.black;
 
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.black),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.black),
+          onPressed: () => Navigator.pop(context),
+        ),
       ),
-      body: Center(
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 30),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(title, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Color(0xFFE91E63))),
-                const SizedBox(height: 10),
-                Text(subtitle, textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey)),
-                const SizedBox(height: 40),
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24.0),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: IntrinsicHeight(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      const SizedBox(height: 20),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(title, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold))
+                      ),
+                      const SizedBox(height: 12),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(subtitle, style: TextStyle(color: Colors.grey[600], fontSize: 16, height: 1.4))
+                      ),
+                      
+                      const SizedBox(height: 60),
 
-                // LIGNE DES 6 TIRETS
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(6, (index) {
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 5),
-                      child: _buildOtpDigitField(index),
-                    );
-                  }),
-                ),
+                      Column(
+                        children: [
+                          SizedBox(
+                            width: double.infinity,
+                            child: Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                TextField(
+                                  controller: _otpController,
+                                  keyboardType: TextInputType.number,
+                                  autofocus: true,
+                                  maxLength: 4,
+                                  showCursor: false,
+                                  style: const TextStyle(color: Colors.transparent),
+                                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                                  decoration: const InputDecoration(
+                                    counterText: "",
+                                    border: InputBorder.none,
+                                  ),
+                                ),
+                                IgnorePointer(
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: List.generate(4, (index) {
+                                      bool hasChar = _currentValue.length > index;
+                                      return Padding(
+                                        padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                              hasChar ? _currentValue[index] : "",
+                                              style: TextStyle(
+                                                fontSize: 28,
+                                                fontWeight: FontWeight.bold,
+                                                color: feedbackColor,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 8),
+                                            AnimatedContainer(
+                                              duration: const Duration(milliseconds: 300),
+                                              width: 40, 
+                                              height: 3,
+                                              color: _hasError 
+                                                  ? Colors.red 
+                                                  : (hasChar ? Colors.black : Colors.grey[200]),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    }),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          
+                          const SizedBox(height: 24),
 
-                const SizedBox(height: 20),
-                if (hasError)
-                  Text(errorMsg, style: const TextStyle(color: Colors.red, fontSize: 14, fontWeight: FontWeight.w500)),
+                          AnimatedOpacity(
+                            opacity: _hasError ? 1.0 : 0.0,
+                            duration: const Duration(milliseconds: 300),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.error_outline, color: Colors.red, size: 16),
+                                const SizedBox(width: 6),
+                                Text(
+                                  errorMsg,
+                                  style: const TextStyle(color: Colors.red, fontSize: 14, fontWeight: FontWeight.w500),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
 
-                const SizedBox(height: 40),
+                      const SizedBox(height: 30),
 
-                // BOUTON VÉRIFIER
-                SizedBox(
-                  width: 200,
-                  height: 55,
-                  child: ElevatedButton(
-                    onPressed: isLoading ? null : _verifyOtp,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFE91E63),
-                      shape: const StadiumBorder(),
-                      elevation: 0,
-                    ),
-                    child: isLoading 
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : Text(verifyBtn, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                      TextButton(
+                        onPressed: _isLoading ? null : () {},
+                        child: Text(
+                          resendText,
+                          style: TextStyle(color: brandPink, fontWeight: FontWeight.bold, fontSize: 15),
+                        ),
+                      ),
+
+                      const Spacer(),
+
+                      Align(
+                        alignment: Alignment.bottomRight,
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: 20.0, top: 20.0),
+                          child: ElevatedButton(
+                            onPressed: _isLoading ? null : _verifyOtp,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _hasError ? Colors.red : brandPink,
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                            ),
+                            child: _isLoading 
+                              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                              : Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(confirmBtn, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+                                    const SizedBox(width: 10),
+                                    const Icon(Icons.arrow_forward_rounded, size: 20),
+                                  ],
+                                ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-
-                const SizedBox(height: 20),
-                TextButton(
-                  onPressed: () => setState(() => hasError = false),
-                  child: Text(resendBtn, style: const TextStyle(color: Colors.grey, decoration: TextDecoration.underline, fontWeight: FontWeight.w500)),
-                ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         ),
-      ),
-    );
-  }
-
-  Widget _buildOtpDigitField(int index) {
-    return SizedBox(
-      width: 30,
-      child: TextField(
-        autofocus: index == 0,
-        textAlign: TextAlign.center,
-        keyboardType: TextInputType.number,
-        maxLength: 1,
-        style: TextStyle(
-          fontSize: 22,
-          fontWeight: FontWeight.bold,
-          color: hasError ? Colors.red : Colors.black,
-        ),
-        decoration: InputDecoration(
-          counterText: "",
-          contentPadding: EdgeInsets.zero,
-          enabledBorder: UnderlineInputBorder(
-            borderSide: BorderSide(color: hasError ? Colors.red : Colors.grey, width: 2),
-          ),
-          focusedBorder: UnderlineInputBorder(
-            borderSide: BorderSide(color: hasError ? Colors.red : const Color(0xFFE91E63), width: 2),
-          ),
-        ),
-        onChanged: (value) {
-          // ON ENREGISTRE LA VALEUR
-          _otpValues[index] = value;
-
-          if (value.length == 1 && index < 5) {
-            FocusScope.of(context).nextFocus();
-          } else if (value.isEmpty && index > 0) {
-            FocusScope.of(context).previousFocus();
-          }
-          if (hasError) setState(() => hasError = false);
-        },
       ),
     );
   }

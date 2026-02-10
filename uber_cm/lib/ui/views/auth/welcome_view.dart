@@ -13,6 +13,104 @@ class WelcomeView extends StatefulWidget {
 class _WelcomeViewState extends State<WelcomeView> {
   String _currentLang = 'FR';
 
+  // --- NOUVEAU SÉLECTEUR DE LANGUE STYLÉ ---
+  void _showLanguagePicker() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min, // S'adapte au contenu
+            children: [
+              // Petite barre grise en haut pour le style "swipe down"
+              Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 24),
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              Text(
+                _currentLang == 'FR' ? "Choisir la langue" : "Select Language",
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 20),
+              
+              // Option Français
+              _buildLanguageOption(
+                label: "Français",
+                code: "FR",
+                flag: "🇫🇷",
+                isSelected: _currentLang == "FR",
+              ),
+              const SizedBox(height: 12),
+              
+              // Option English
+              _buildLanguageOption(
+                label: "English",
+                code: "EN",
+                flag: "🇺🇸",
+                isSelected: _currentLang == "EN",
+              ),
+              const SizedBox(height: 30),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // Petit widget helper pour les lignes de langue
+  Widget _buildLanguageOption({
+    required String label,
+    required String code,
+    required String flag,
+    required bool isSelected,
+  }) {
+    return InkWell(
+      onTap: () {
+        setState(() => _currentLang = code);
+        Navigator.pop(context);
+      },
+      borderRadius: BorderRadius.circular(15),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFFE91E63).withOpacity(0.05) : Colors.transparent,
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(
+            color: isSelected ? const Color(0xFFE91E63) : Colors.grey[200]!,
+            width: 1.5,
+          ),
+        ),
+        child: Row(
+          children: [
+            Text(flag, style: const TextStyle(fontSize: 24)),
+            const SizedBox(width: 16),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                color: isSelected ? const Color(0xFFE91E63) : Colors.black,
+              ),
+            ),
+            const Spacer(),
+            if (isSelected)
+              const Icon(Icons.check_circle, color: Color(0xFFE91E63), size: 24),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     const Color brandPink = Color(0xFFE91E63);
@@ -20,6 +118,7 @@ class _WelcomeViewState extends State<WelcomeView> {
     return Scaffold(
       body: Stack(
         children: [
+          // Background Image
           Container(
             decoration: const BoxDecoration(
               image: DecorationImage(
@@ -29,53 +128,57 @@ class _WelcomeViewState extends State<WelcomeView> {
             ),
           ),
           
+          // Gradient Overlay
           Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  Colors.black.withValues(alpha: 0.4),
+                  Colors.black.withOpacity(0.4),
                   Colors.transparent,
-                  Colors.black.withValues(alpha: 0.9),
+                  Colors.black.withOpacity(0.9),
                 ],
                 stops: const [0.0, 0.4, 1.0],
               ),
             ),
           ),
 
+          // BOUTON LANGUE (MODIFIÉ)
           Positioned(
             top: 50,
             right: 20,
-            child: PopupMenuButton<String>(
-              onSelected: (String lang) {
-                setState(() {
-                  _currentLang = lang;
-                });
-              },
+            child: GestureDetector(
+              onTap: _showLanguagePicker,
               child: Container(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.2),
-                  shape: BoxShape.circle,
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.5),
+                    color: Colors.white.withOpacity(0.5),
                     width: 1.5,
                   ),
                 ),
-                child: const Icon(
-                  Icons.language,
-                  color: Colors.white,
-                  size: 26,
+                child: Row(
+                  children: [
+                    const Icon(Icons.language, color: Colors.white, size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      _currentLang,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const Icon(Icons.keyboard_arrow_down, color: Colors.white, size: 20),
+                  ],
                 ),
               ),
-              itemBuilder: (context) => [
-                const PopupMenuItem(value: 'FR', child: Text("🇫🇷 Français")),
-                const PopupMenuItem(value: 'EN', child: Text("🇺🇸 English")),
-              ],
             ),
           ),
 
+          // ... Le reste de ton code (Textes et Boutons) est identique ...
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 60.0),
             child: Column(
@@ -110,9 +213,7 @@ class _WelcomeViewState extends State<WelcomeView> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => NameRegistrationView(
-                            lang: _currentLang, 
-                          ),
+                          builder: (context) => NameRegistrationView(lang: _currentLang),
                         ),
                       );
                     },
@@ -125,11 +226,7 @@ class _WelcomeViewState extends State<WelcomeView> {
                     ),
                     child: Text(
                       _currentLang == 'FR' ? "Créer un compte" : "Create account",
-                      style: const TextStyle(
-                        fontSize: 18,
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
+                      style: const TextStyle(fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold),
                     ),
                   ),
                 ),
@@ -138,13 +235,9 @@ class _WelcomeViewState extends State<WelcomeView> {
                 Center(
                   child: TextButton(
                     onPressed: () {
-                      // --- CORRECTION ICI ---
                       Navigator.push(
                         context,
-                        MaterialPageRoute(
-                          // On enlève 'const' et on ajoute 'lang'
-                          builder: (context) => LoginView(lang: _currentLang),
-                        ),
+                        MaterialPageRoute(builder: (context) => LoginView(lang: _currentLang)),
                       );
                     },
                     child: Row(
@@ -156,18 +249,10 @@ class _WelcomeViewState extends State<WelcomeView> {
                         ),
                         Text(
                           _currentLang == 'FR' ? "Connexion" : "Login",
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                            fontSize: 15,
-                          ),
+                          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 15),
                         ),
                         const SizedBox(width: 6),
-                        const Icon(
-                          Icons.arrow_forward_rounded,
-                          color: Colors.white,
-                          size: 18,
-                        ),
+                        const Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 18),
                       ],
                     ),
                   ),
