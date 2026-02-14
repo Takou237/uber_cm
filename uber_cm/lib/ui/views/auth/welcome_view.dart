@@ -83,7 +83,7 @@ class _WelcomeViewState extends State<WelcomeView> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFE91E63).withOpacity(0.05) : Colors.transparent,
+          color: isSelected ? const Color(0xFFE91E63).withValues( alpha:0.05) : Colors.transparent,
           borderRadius: BorderRadius.circular(15),
           border: Border.all(
             color: isSelected ? const Color(0xFFE91E63) : Colors.grey[200]!,
@@ -135,9 +135,9 @@ class _WelcomeViewState extends State<WelcomeView> {
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  Colors.black.withOpacity(0.4),
+                  Colors.black.withValues( alpha:0.4),
                   Colors.transparent,
-                  Colors.black.withOpacity(0.9),
+                  Colors.black.withValues( alpha:0.9),
                 ],
                 stops: const [0.0, 0.4, 1.0],
               ),
@@ -153,10 +153,10 @@ class _WelcomeViewState extends State<WelcomeView> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
+                  color: Colors.white.withValues( alpha:0.2),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                    color: Colors.white.withOpacity(0.5),
+                    color: Colors.white.withValues( alpha:0.5),
                     width: 1.5,
                   ),
                 ),
