@@ -15,38 +15,17 @@ const transporter = nodemailer.createTransport({
 // ==========================================
 // 2. FONCTION : DEMANDE DE CODE (OTP)
 // ==========================================
-exports.requestOTP = async (req, res) => {
-    const { phone, name, email, method } = req.body; // 'method' sera ignoré ou forcé sur email
-    const otpCode = Math.floor(1000 + Math.random() * 9000);
+// --- REMPLACE TON BLOC NODEMAILER PAR ÇA ---
+console.log("-----------------------------------------");
+console.log(`CODE OTP POUR ${phone} : ${otpCode}`);
+console.log("-----------------------------------------");
 
-    try {
-        const userCheck = await db.query('SELECT * FROM users WHERE phone = $1', [phone]);
-
-        if (userCheck.rows.length === 0) {
-            await db.query(
-                'INSERT INTO users (phone, name, email, otp_code, role) VALUES ($1, $2, $3, $4, $5)',
-                [phone, name, email, otpCode, 'client']
-            );
-        } else {
-            await db.query('UPDATE users SET otp_code = $1 WHERE phone = $2', [otpCode, phone]);
-        }
-
-        // On envoie par EMAIL uniquement (plus fiable sur serveur)
-        await transporter.sendMail({
-            from: '"Uber CM" <ebooks.ndemou@gmail.com>',
-            to: email,
-            subject: 'Votre code de vérification',
-            text: `Bonjour ${name}, votre code de vérification est : ${otpCode}`
-        });
-        
-        console.log(`📧 OTP envoyé par Email à ${email}`);
-        res.status(200).json({ success: true, message: "Code envoyé par email" });
-
-    } catch (err) {
-        console.error("❌ Erreur requestOTP:", err);
-        res.status(500).json({ success: false, message: "Erreur lors de l'envoi du code" });
-    }
-};
+// On répond DIRECTEMENT à Flutter sans attendre Gmail
+return res.status(200).json({ 
+  success: true, 
+  message: "Mode Test : Code envoyé dans les logs" 
+});
+// -------------------------------------------
 
 // ==========================================
 // 3. FONCTION : VÉRIFICATION DU CODE (OTP)
