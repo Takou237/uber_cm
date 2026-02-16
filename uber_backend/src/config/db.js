@@ -1,21 +1,18 @@
 const { Pool } = require('pg');
-require('dotenv').config();
 
-// Ici, on crée la connexion avec les infos du fichier .env
+// Railway fournit automatiquement DATABASE_URL
 const pool = new Pool({
-  user: process.env.DB_USER,
-  host: process.env.DB_HOST,
-  database: process.env.DB_DATABASE,
-  password: process.env.DB_PASSWORD,
-  port: process.env.DB_PORT,
+  connectionString: process.env.DATABASE_URL,
+  ssl: {
+    rejectUnauthorized: false // Indispensable pour les connexions sécurisées Railway
+  }
 });
 
-// Ce petit bout de code sert à vérifier si la connexion marche
 pool.connect((err, client, release) => {
   if (err) {
-    return console.error('Erreur de connexion à PostgreSQL :', err.stack);
+    return console.error('❌ Erreur de connexion à PostgreSQL :', err.stack);
   }
-  console.log('✅ Connecté avec succès à la base de données PostgreSQL !');
+  console.log('✅ Connecté avec succès à la base de données PostgreSQL de Railway !');
   release();
 });
 
