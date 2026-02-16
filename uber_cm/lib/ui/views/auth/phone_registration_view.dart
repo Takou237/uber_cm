@@ -64,45 +64,46 @@ class _PhoneRegistrationViewState extends State<PhoneRegistrationView> {
     );
   }
 
-  // --- APPEL API AVEC BYPASS DE SÉCURITÉ ---
-  Future<void> _sendOtpRequest(String method) async {
-    final String phoneNumber = "+237${_phoneController.text.trim()}";
-    
-    Navigator.pop(context); // Fermer le sélecteur
+  // --- APPEL API ---
+Future<void> _sendOtpRequest(String method) async {
+  final String phoneNumber = "+237${_phoneController.text.trim()}";
+  
+  // Fermer le sélecteur avant de lancer le chargement
+  if (Navigator.canPop(context)) Navigator.pop(context); 
 
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const Center(child: CircularProgressIndicator(color: Color(0xFFE91E63))),
-    );
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (context) => const Center(child: CircularProgressIndicator(color: Color(0xFFE91E63))),
+  );
 
-    try {
-      // TENTATIVE DE CONNEXION AU BACKEND
-      final response = await http.post(
-        Uri.parse('http://172.30.7.48:5000/api/auth/request-otp'),
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode({
-          "phone": phoneNumber,
-          "name": widget.userName,
-          "email": widget.userEmail,
-          "method": method,
-        }),
-      ).timeout(const Duration(seconds: 5)); // Timeout court pour le dev
+  try {
+    // UTILISATION DE TON URL RAILWAY
+    final response = await http.post(
+      Uri.parse('https://uberbackend-production-e8ea.up.railway.app/api/auth/request-otp'),
+      headers: {"Content-Type": "application/json"},
+      body: jsonEncode({
+        "phone": phoneNumber,
+        "name": widget.userName,
+        "email": widget.userEmail,
+        "method": method, // Le backend forcera l'email mais on garde la structure
+      }),
+    ).timeout(const Duration(seconds: 30)); // Augmentation du timeout pour le réseau mobile
 
-      if (!mounted) return;
-      Navigator.pop(context); // Fermer le loader
+    if (!mounted) return;
+    Navigator.pop(context); // Fermer le loader
 
-      if (response.statusCode == 200) {
-        _navigateToOtp(phoneNumber);
-      } else {
-        _handleRequestFailure(phoneNumber, "Erreur ${response.statusCode}");
-      }
-    } catch (e) {
-      if (mounted) Navigator.pop(context); // Fermer le loader
-      _handleRequestFailure(phoneNumber, "Serveur injoignable");
-      print("Détails de l'erreur: $e");
+    if (response.statusCode == 200) {
+      _navigateToOtp(phoneNumber);
+    } else {
+      _handleRequestFailure(phoneNumber, "Erreur serveur (${response.statusCode})");
     }
+  } catch (e) {
+    if (mounted) Navigator.pop(context); // Fermer le loader
+    _handleRequestFailure(phoneNumber, "Impossible de contacter le serveur");
+    debugPrint("Détails de l'erreur: $e");
   }
+}
 
   void _handleRequestFailure(String phone, String reason) {
     _triggerErrorEffect();

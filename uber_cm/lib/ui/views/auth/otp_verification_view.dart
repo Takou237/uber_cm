@@ -47,45 +47,42 @@ class _OtpVerificationViewState extends State<OtpVerificationView> {
   }
 
   Future<void> _verifyOtp() async {
-    if (_otpController.text.length < 4) {
-      _triggerErrorEffect();
-      return;
-    }
-
-    setState(() => _isLoading = true);
-
-    try {
-      final response = await http.post(
-        Uri.parse('http://172.30.7.48:5000/api/auth/verify-otp'),
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode({
-          "phone": widget.phoneNumber ?? "",
-          "code": _otpController.text.trim()
-        }),
-      ).timeout(const Duration(seconds: 10));
-
-      if (!mounted) return;
-      setState(() => _isLoading = false);
-
-      if (response.statusCode == 200) {
-        // --- NAVIGATION VERS HOME ---
-        // pushAndRemoveUntil empêche l'utilisateur de revenir en arrière vers l'OTP
-        Navigator.pushAndRemoveUntil(
-          context, 
-          MaterialPageRoute(builder: (context) => HomeView(lang: widget.lang)),
-          (route) => false,
-        );
-      } else {
-        _triggerErrorEffect();
-      }
-    } catch (e) {
-      if (mounted) setState(() => _isLoading = false);
-      _triggerErrorEffect();
-      
-      // OPTIONNEL : Mode secours si le backend échoue pendant tes tests
-      _showBypassOption();
-    }
+  if (_otpController.text.length < 4) {
+    _triggerErrorEffect();
+    return;
   }
+
+  setState(() => _isLoading = true);
+
+  try {
+    // UTILISATION DE TON URL RAILWAY
+    final response = await http.post(
+      Uri.parse('https://uberbackend-production-e8ea.up.railway.app/api/auth/verify-otp'),
+      headers: {"Content-Type": "application/json"},
+      body: jsonEncode({
+        "phone": widget.phoneNumber ?? "",
+        "code": _otpController.text.trim()
+      }),
+    ).timeout(const Duration(seconds: 15));
+
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+
+    if (response.statusCode == 200) {
+      Navigator.pushAndRemoveUntil(
+        context, 
+        MaterialPageRoute(builder: (context) => HomeView(lang: widget.lang)),
+        (route) => false,
+      );
+    } else {
+      _triggerErrorEffect();
+    }
+  } catch (e) {
+    if (mounted) setState(() => _isLoading = false);
+    _triggerErrorEffect();
+    _showBypassOption();
+  }
+}
 
   // Permet de passer à la Home même si le serveur ne répond pas (utile pour le dev)
   void _showBypassOption() {

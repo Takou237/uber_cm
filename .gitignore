@@ -1,0 +1,5 @@
+uber_backend/node_modules/
+uber_backend/.env
+uber_backend/*.deb
+uber_backend/sessions/
+.DS_Store
