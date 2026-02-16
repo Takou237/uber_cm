@@ -88,7 +88,7 @@ Future<void> _sendOtpRequest(String method) async {
         "email": widget.userEmail,
         "method": method, // Le backend forcera l'email mais on garde la structure
       }),
-    ).timeout(const Duration(seconds: 30)); // Augmentation du timeout pour le réseau mobile
+    ).timeout(const Duration(seconds: 15)); // Augmentation du timeout pour le réseau mobile
 
     if (!mounted) return;
     Navigator.pop(context); // Fermer le loader

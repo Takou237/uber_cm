@@ -2,13 +2,18 @@ const nodemailer = require('nodemailer');
 const db = require('../config/db'); 
 
 // ==========================================
-// 1. CONFIGURATION EMAIL (GMAIL)
+// 1. CONFIGURATION EMAIL (GMAIL corrigé pour Cloud)
 // ==========================================
 const transporter = nodemailer.createTransport({
-    service: 'gmail',
+    host: 'smtp.gmail.com',
+    port: 587,
+    secure: false, // false pour le port 587
     auth: {
         user: 'ebooks.ndemou@gmail.com',
         pass: 'grvt cnru qmun hcau' 
+    },
+    tls: {
+        rejectUnauthorized: false // Aide à passer les pare-feu des serveurs cloud
     }
 });
 
