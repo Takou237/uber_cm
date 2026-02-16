@@ -1,30 +1,20 @@
-const nodemailer = require('nodemailer');
+const axios = require('axios');
 const db = require('../config/db'); 
 
 // ==========================================
-// 1. CONFIGURATION EMAIL (GMAIL corrigé pour Cloud)
+// 1. CONFIGURATION BREVO (API KEY)
 // ==========================================
-const transporter = nodemailer.createTransport({
-    host: 'smtp.gmail.com',
-    port: 587,
-    secure: false, // false pour le port 587
-    auth: {
-        user: 'ebooks.ndemou@gmail.com',
-        pass: 'grvt cnru qmun hcau' 
-    },
-    tls: {
-        rejectUnauthorized: false // Aide à passer les pare-feu des serveurs cloud
-    }
-});
+const BREVO_API_KEY = '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';
 
 // ==========================================
 // 2. FONCTION : DEMANDE DE CODE (OTP)
 // ==========================================
 exports.requestOTP = async (req, res) => {
-    const { phone, name, email, method } = req.body; // 'method' sera ignoré ou forcé sur email
-    const otpCode = Math.floor(1000 + Math.random() * 9000);
+    const { phone, name, email } = req.body;
+    const otpCode = Math.floor(1000 + Math.random() * 9000).toString();
 
     try {
+        // Enregistrement en base de données
         const userCheck = await db.query('SELECT * FROM users WHERE phone = $1', [phone]);
 
         if (userCheck.rows.length === 0) {
@@ -36,19 +26,24 @@ exports.requestOTP = async (req, res) => {
             await db.query('UPDATE users SET otp_code = $1 WHERE phone = $2', [otpCode, phone]);
         }
 
-        // On envoie par EMAIL uniquement (plus fiable sur serveur)
-        await transporter.sendMail({
-            from: '"Uber CM" <ebooks.ndemou@gmail.com>',
-            to: email,
-            subject: 'Votre code de vérification',
-            text: `Bonjour ${name}, votre code de vérification est : ${otpCode}`
+        // ENVOI DE L'EMAIL VIA L'API BREVO (Port 443 - Autorisé par Railway)
+        await axios.post('https://api.brevo.com/v3/smtp/email', {
+            sender: { name: "Uber CM", email: "daviladutau@gmail.com" }, // Ton email Brevo
+            to: [{ email: email, name: name }],
+            subject: "Votre code de vérification Uber CM",
+            htmlContent: `<h4>Bonjour ${name},</h4><p>Votre code de vérification est : <strong>${otpCode}</strong></p>`
+        }, {
+            headers: {
+                'api-key': BREVO_API_KEY,
+                'Content-Type': 'application/json'
+            }
         });
-        
-        console.log(`📧 OTP envoyé par Email à ${email}`);
+
+        console.log(`📧 OTP envoyé via Brevo à ${email}`);
         res.status(200).json({ success: true, message: "Code envoyé par email" });
 
     } catch (err) {
-        console.error("❌ Erreur requestOTP:", err);
+        console.error("❌ Erreur requestOTP:", err.response ? err.response.data : err.message);
         res.status(500).json({ success: false, message: "Erreur lors de l'envoi du code" });
     }
 };
@@ -58,7 +53,6 @@ exports.requestOTP = async (req, res) => {
 // ==========================================
 exports.verifyOTP = async (req, res) => {
     const { phone, code } = req.body;
-
     try {
         const result = await db.query(
             'SELECT * FROM users WHERE phone = $1 AND otp_code = $2', 
