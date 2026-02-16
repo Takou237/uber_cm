@@ -4,7 +4,7 @@ const db = require('../config/db');
 // ==========================================
 // 1. CONFIGURATION BREVO (API KEY)
 // ==========================================
-const BREVO_API_KEY = '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';
+const BREVO_API_KEY = process.env.BREVO_API_KEY;
 
 // ==========================================
 // 2. FONCTION : DEMANDE DE CODE (OTP)
