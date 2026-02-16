@@ -16,31 +16,35 @@ const transporter = nodemailer.createTransport({
 // 2. FONCTION : DEMANDE DE CODE (OTP)
 // ==========================================
 exports.requestOTP = async (req, res) => {
-    const { phone, name, email } = req.body;
-    const otpCode = Math.floor(1000 + Math.random() * 9000).toString(); // Génère 4 chiffres
+    const { phone, name, email, method } = req.body; // 'method' sera ignoré ou forcé sur email
+    const otpCode = Math.floor(1000 + Math.random() * 9000);
 
     try {
-        // Sauvegarde ou mise à jour de l'utilisateur avec le code
-        await db.query(
-            'INSERT INTO users (phone, name, email, otp_code) VALUES ($1, $2, $3, $4) ON CONFLICT (phone) DO UPDATE SET otp_code = $4',
-            [phone, name, email, otpCode]
-        );
+        const userCheck = await db.query('SELECT * FROM users WHERE phone = $1', [phone]);
 
-        // --- MODE TEST : ON N'UTILISE PAS NODEMAILER ICI POUR ÉVITER LE TIMEOUT ---
-        console.log("-----------------------------------------");
-        console.log(`✅ MODE TEST ACTIVÉ`);
-        console.log(`📱 CODE OTP POUR ${phone} : ${otpCode}`);
-        console.log("-----------------------------------------");
+        if (userCheck.rows.length === 0) {
+            await db.query(
+                'INSERT INTO users (phone, name, email, otp_code, role) VALUES ($1, $2, $3, $4, $5)',
+                [phone, name, email, otpCode, 'client']
+            );
+        } else {
+            await db.query('UPDATE users SET otp_code = $1 WHERE phone = $2', [otpCode, phone]);
+        }
 
-        // On répond immédiatement à Flutter
-        return res.status(200).json({ 
-            success: true, 
-            message: "Code généré (vérifiez les logs Railway)" 
+        // On envoie par EMAIL uniquement (plus fiable sur serveur)
+        await transporter.sendMail({
+            from: '"Uber CM" <ebooks.ndemou@gmail.com>',
+            to: email,
+            subject: 'Votre code de vérification',
+            text: `Bonjour ${name}, votre code de vérification est : ${otpCode}`
         });
+        
+        console.log(`📧 OTP envoyé par Email à ${email}`);
+        res.status(200).json({ success: true, message: "Code envoyé par email" });
 
     } catch (err) {
         console.error("❌ Erreur requestOTP:", err);
-        return res.status(500).json({ success: false, message: "Erreur serveur" });
+        res.status(500).json({ success: false, message: "Erreur lors de l'envoi du code" });
     }
 };
 
@@ -57,9 +61,8 @@ exports.verifyOTP = async (req, res) => {
         );
 
         if (result.rows.length > 0) {
-            // On efface le code après réussite
             await db.query('UPDATE users SET otp_code = NULL WHERE phone = $1', [phone]);
-            console.log(`✅ Code validé avec succès pour ${phone}`);
+            console.log(`✅ Code validé pour ${phone}`);
             return res.status(200).json({ success: true, message: "Vérification réussie" });
         } else {
             return res.status(400).json({ success: false, message: "Code incorrect" });
