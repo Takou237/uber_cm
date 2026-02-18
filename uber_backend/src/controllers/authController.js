@@ -8,42 +8,44 @@ exports.requestOTP = async (req, res) => {
     const otpCode = Math.floor(1000 + Math.random() * 9000).toString();
 
     try {
-        // 1. D'ABORD : Enregistrement ou mise à jour en base de données
+        // 1. Enregistrement ou mise à jour
         const userCheck = await db.query('SELECT * FROM users WHERE phone = $1', [phone]);
 
         if (userCheck.rows.length === 0) {
+            // INSERT : La colonne created_at se remplira automatiquement grâce au DEFAULT CURRENT_TIMESTAMP
             await db.query(
                 'INSERT INTO users (phone, name, email, otp_code, role) VALUES ($1, $2, $3, $4, $5)',
                 [phone, name, email, otpCode, 'client']
             );
-            console.log(`✅ Nouvel utilisateur créé en base : ${phone}`);
+            console.log(`✅ Nouveau compte créé le ${new Date().toLocaleString()} pour : ${phone}`);
         } else {
+            // UPDATE : On met à jour l'OTP
             await db.query('UPDATE users SET otp_code = $1 WHERE phone = $2', [otpCode, phone]);
-            console.log(`✅ OTP mis à jour en base pour : ${phone}`);
+            console.log(`✅ OTP mis à jour pour : ${phone}`);
         }
 
-        // 2. ENSUITE : Envoi de l'email via Brevo
+        // 2. Envoi de l'email
         try {
             await axios.post('https://api.brevo.com/v3/smtp/email', {
                 sender: { name: "Uber CM", email: "daviladutau@gmail.com" },
                 to: [{ email: email, name: name }],
                 subject: "Votre code de vérification Uber CM",
-                htmlContent: `<h4>Bonjour ${name},</h4><p>Votre code est : <strong>${otpCode}</strong></p>`
+                htmlContent: `<h4>Bonjour ${name},</h4><p>Votre code est : <strong>${otpCode}</strong></p><p>Demande effectuée le : ${new Date().toLocaleString()}</p>`
             }, {
                 headers: {
                     'api-key': BREVO_API_KEY,
                     'Content-Type': 'application/json'
                 }
             });
-            console.log(`📧 Email envoyé avec succès à ${email}`);
+            console.log(`📧 Email envoyé à ${email}`);
         } catch (emailErr) {
-            console.error("⚠️ Erreur Brevo (mais l'user est créé) :", emailErr.response ? emailErr.response.data : emailErr.message);
+            console.error("⚠️ Erreur Brevo :", emailErr.response ? emailErr.response.data : emailErr.message);
         }
 
         res.status(200).json({ success: true, message: "Opération réussie" });
 
     } catch (err) {
-        console.error("❌ Erreur CRITIQUE requestOTP (Base de données) :", err.message);
+        console.error("❌ Erreur Base de données :", err.message);
         res.status(500).json({ success: false, message: "Erreur serveur" });
     }
 };
