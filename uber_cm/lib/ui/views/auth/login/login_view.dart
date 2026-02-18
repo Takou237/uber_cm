@@ -42,42 +42,66 @@ class _LoginViewState extends State<LoginView> {
     });
   }
 
+  void _showErrorSnackBar(String message) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(
+        message,
+        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+      ),
+      backgroundColor: Colors.redAccent,
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      duration: const Duration(seconds: 4),
+    ),
+  );
+}
+
   // --- APPEL API POUR ENVOYER L'OTP ---
   Future<void> _sendOtpAndNavigate() async {
-    if (_isLoading) return;
+  if (_isLoading) return;
 
-    setState(() => _isLoading = true);
-    final String phoneNumber = "+237${_phoneController.text.trim()}";
-    
-    try {
-      final response = await http.post(
-        Uri.parse('https://uberbackend-production-e8ea.up.railway.app/auth/request-otp'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'phone': phoneNumber,
-          'email': 'daviladutau@gmail.com', // Email de test configuré sur ton Brevo
-          'name': 'Utilisateur Uber CM' 
-        }),
+  setState(() => _isLoading = true);
+  final String phoneNumber = "+237${_phoneController.text.trim()}";
+  
+  try {
+    final response = await http.post(
+      Uri.parse('https://uberbackend-production-e8ea.up.railway.app/auth/request-otp'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'phone': phoneNumber,
+        // On envoie ces données au cas où, mais le backend les ignorera si le compte existe
+        'email': 'daviladutau@gmail.com', 
+        'name': 'Utilisateur Uber CM' 
+      }),
+    );
+
+    if (!mounted) return;
+
+    if (response.statusCode == 200) {
+      // SUCCÈS : On navigue vers l'écran OTP
+      Navigator.push(
+        context, 
+        MaterialPageRoute(
+          builder: (context) => OtpView(lang: widget.lang, phone: phoneNumber)
+        )
       );
-
-      if (!mounted) return;
-
-      if (response.statusCode == 200) {
-        Navigator.push(
-          context, 
-          MaterialPageRoute(
-            builder: (context) => OtpView(lang: widget.lang, phone: phoneNumber)
-          )
-        );
-      } else {
-        _triggerErrorEffect();
-      }
-    } catch (e) {
+    } else if (response.statusCode == 404) {
+      // ERREUR : Compte non trouvé
+      final errorData = jsonDecode(response.body);
+      _showErrorSnackBar(errorData['message']); 
       _triggerErrorEffect();
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
+    } else {
+      // AUTRE ERREUR (500, etc.)
+      _triggerErrorEffect();
     }
+  } catch (e) {
+    _triggerErrorEffect();
+    _showErrorSnackBar(widget.lang == "FR" ? "Erreur de connexion" : "Connection error");
+  } finally {
+    if (mounted) setState(() => _isLoading = false);
   }
+}
 
 void _showMethodSelector() {
     String title = widget.lang == "FR" ? "Recevoir le code via" : "Receive code via";
