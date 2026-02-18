@@ -79,8 +79,10 @@ class _LoginViewState extends State<LoginView> {
     }
   }
 
-  void _showMethodSelector() {
+void _showMethodSelector() {
     String title = widget.lang == "FR" ? "Recevoir le code via" : "Receive code via";
+    String emailLabel = widget.lang == "FR" ? "Email" : "Email";
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.white, 
@@ -95,17 +97,33 @@ class _LoginViewState extends State<LoginView> {
               const SizedBox(height: 20),
               Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 20),
+              
+              // Option SMS
               ListTile(
                 leading: const Icon(Icons.sms, color: Colors.blue),
                 title: const Text("SMS"),
                 onTap: () { Navigator.pop(context); _sendOtpAndNavigate(); },
               ),
               const Divider(),
+
+              // Option WhatsApp
               ListTile(
                 leading: const Icon(Icons.chat, color: Colors.green),
                 title: const Text("WhatsApp"),
                 onTap: () { Navigator.pop(context); _sendOtpAndNavigate(); },
               ),
+              const Divider(),
+
+              // NOUVELLE OPTION : EMAIL
+              ListTile(
+                leading: Icon(Icons.email, color: brandPink),
+                title: Text(emailLabel),
+                onTap: () { 
+                  Navigator.pop(context); 
+                  _sendOtpAndNavigate(); // Appelle la même logique car ton backend gère déjà l'email
+                },
+              ),
+              const SizedBox(height: 10),
             ],
           ),
         );
