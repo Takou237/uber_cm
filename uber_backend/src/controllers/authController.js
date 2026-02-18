@@ -14,46 +14,45 @@ exports.requestOTP = async (req, res) => {
     const otpCode = Math.floor(1000 + Math.random() * 9000).toString();
 
     try {
-        const userCheck = await db.query(
-            'SELECT * FROM users WHERE phone = $1',
-            [phone]
-        );
+        // Enregistrement en base de données
+        const userCheck = await db.query('SELECT * FROM users WHERE phone = $1', [phone]);
 
         if (userCheck.rows.length === 0) {
-
-            const insertResult = await db.query(
-                `INSERT INTO users (phone, name, email, otp_code, role)
-                 VALUES ($1,$2,$3,$4,$5)
-                 RETURNING *`,
+            await db.query(
+                'INSERT INTO users (phone, name, email, otp_code, role) VALUES ($1, $2, $3, $4, $5)',
                 [phone, name, email, otpCode, 'client']
             );
-
-            console.log("✅ User créé :", insertResult.rows[0]);
-
+            console.log("NOUVEL UTILISATEUR CRÉÉ :", insertResult.rows[0]);
         } else {
-
-            await db.query(
-                'UPDATE users SET otp_code = $1 WHERE phone = $2',
-                [otpCode, phone]
-            );
-
-            console.log("🔄 OTP mis à jour");
-
+            await db.query('UPDATE users SET otp_code = $1 WHERE phone = $2', [otpCode, phone]);
         }
 
-        // ENVOI EMAIL (laisse ton code Brevo ici)
-
-        res.status(200).json({
-            success: true,
-            message: "Code envoyé"
+        // ENVOI DE L'EMAIL VIA L'API BREVO (Port 443 - Autorisé par Railway)
+        await axios.post('https://api.brevo.com/v3/smtp/email', {
+            sender: { name: "Uber CM", email: "daviladutau@gmail.com" }, // Ton email Brevo
+            to: [{ email: email, name: name }],
+            subject: "Votre code de vérification Uber CM",
+            htmlContent: `<h4>Bonjour ${name},</h4><p>Votre code de vérification est : <strong>${otpCode}</strong></p>`
+        }, {
+            headers: {
+                'api-key': BREVO_API_KEY,
+                'Content-Type': 'application/json'
+            }
         });
+        
+        try {
+            const resDB = await db.query('INSERT INTO users ...');
+            console.log("Résultat SQL :", resDB.rowCount, "ligne insérée");
+        } catch (dbErr) {
+            console.error("DÉTAIL ERREUR SQL :", dbErr);
+        }
+
+        console.log(`📧 OTP envoyé via Brevo à ${email}`);
+        res.status(200).json({ success: true, message: "Code envoyé par email" });
 
     } catch (err) {
-        console.error("❌ requestOTP ERROR:", err);
-        res.status(500).json({
-            success: false,
-            message: "Erreur serveur"
-        });
+        console.error("❌ Erreur requestOTP:", err.response ? err.response.data : err.message);
+        res.status(500).json({ success: false, message: "Erreur lors de l'envoi du code" });
     }
 };
 
