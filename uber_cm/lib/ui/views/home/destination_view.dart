@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:osm_nominatim/osm_nominatim.dart';
+import 'dart:async'; // Nécessaire pour le Timer (Debounce)
 
 class DestinationView extends StatefulWidget {
   final String lang;
@@ -18,26 +20,55 @@ class _DestinationViewState extends State<DestinationView> {
   late TextEditingController _pickupController;
   final TextEditingController _destinationController = TextEditingController();
 
+  List<Place> _suggestions = [];
+  bool _isLoading = false;
+  Timer? _debounce;
+
   @override
   void initState() {
     super.initState();
-    // Initialisation avec l'adresse reçue de HomeView
     _pickupController = TextEditingController(text: widget.currentAddress);
   }
 
-  // MISE À JOUR : Permet de mettre à jour le champ si l'adresse change pendant que la vue est ouverte
-  @override
-  void didUpdateWidget(covariant DestinationView oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.currentAddress != widget.currentAddress) {
-      _pickupController.text = widget.currentAddress;
-    }
+  // LOGIQUE DE RECHERCHE OPTIMISÉE
+  void _onSearchChanged(String value) {
+    if (_debounce?.isActive ?? false) _debounce!.cancel();
+
+    _debounce = Timer(const Duration(milliseconds: 500), () async {
+      if (value.length > 2) {
+        setState(() => _isLoading = true);
+        try {
+          final nominatim = Nominatim(userAgent: 'uber_cm_app');
+
+          final results = await nominatim.searchByName(
+            query: value,
+            limit: 6,
+            addressDetails: true,
+            countryCodes: ['cm'],
+          );
+
+          setState(() {
+            _suggestions = results;
+            _isLoading = false;
+          });
+        } catch (e) {
+          setState(() => _isLoading = false);
+          debugPrint("Erreur OSM : $e");
+        }
+      } else {
+        setState(() {
+          _suggestions = [];
+          _isLoading = false;
+        });
+      }
+    });
   }
 
   @override
   void dispose() {
     _pickupController.dispose();
     _destinationController.dispose();
+    _debounce?.cancel();
     super.dispose();
   }
 
@@ -83,8 +114,7 @@ class _DestinationViewState extends State<DestinationView> {
                       icon: Icons.circle,
                       iconColor: const Color(0xFF111727),
                       hint: isFR ? "Lieu de départ" : "Pick up location",
-                      enabled:
-                          false, // Empêche la modification manuelle pour rester sur le GPS
+                      enabled: false,
                     ),
                     const SizedBox(height: 12),
                     _buildInputBox(
@@ -93,46 +123,83 @@ class _DestinationViewState extends State<DestinationView> {
                       iconColor: Colors.blue,
                       hint: isFR ? "Où allez-vous ?" : "Where to ?",
                       isDestination: true,
+                      onChanged: _onSearchChanged,
                     ),
                   ],
                 ),
               ],
             ),
           ),
+
           Expanded(
-            child: ListView(
-              padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: Stack(
               children: [
-                _buildFavoriteAction(
-                  Icons.home,
-                  isFR ? "Ajouter Maison" : "Add Home",
-                ),
-                _buildFavoriteAction(
-                  Icons.work,
-                  isFR ? "Ajouter Travail" : "Add Work",
-                ),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 15, vertical: 5),
-                  child: Divider(),
-                ),
-                _buildHistoryTile(
-                  "FKC Joint",
-                  "2972 Westheimer Rd. Santa Ana, Illinois",
-                  Icons.history,
-                ),
-                _buildHistoryTile(
-                  "Eneo Office",
-                  "6391 poste centrale, Delaware 10299",
-                  Icons.history,
-                ),
-                _buildHistoryTile(
-                  "Mimba Jouvance",
-                  "Yaoundé, Cameroun",
-                  Icons.location_on,
-                ),
+                // 1. Liste des suggestions
+                if (_suggestions.isNotEmpty)
+                  ListView.builder(
+                    itemCount: _suggestions.length,
+                    itemBuilder: (context, index) {
+                      final place = _suggestions[index];
+                      return _buildHistoryTile(
+                        place.displayName.split(',')[0],
+                        place.displayName,
+                        Icons.location_on,
+                        onTap: () {
+                          // ON RENVOIE L'OBJET PLACE À HOME_VIEW
+                          Navigator.pop(context, place);
+                        },
+                      );
+                    },
+                  )
+                // 2. Liste par défaut (Favoris)
+                else if (!_isLoading)
+                  ListView(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    children: [
+                      _buildFavoriteAction(
+                        Icons.home,
+                        isFR ? "Ajouter Maison" : "Add Home",
+                      ),
+                      _buildFavoriteAction(
+                        Icons.work,
+                        isFR ? "Ajouter Travail" : "Add Work",
+                      ),
+                      const Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 15,
+                          vertical: 5,
+                        ),
+                        child: Divider(),
+                      ),
+                      _buildHistoryTile(
+                        "FKC Joint",
+                        "2972 Westheimer Rd...",
+                        Icons.history,
+                      ),
+                      _buildHistoryTile(
+                        "Eneo Office",
+                        "6391 poste centrale...",
+                        Icons.history,
+                      ),
+                    ],
+                  ),
+
+                // 3. Indicateur de chargement
+                if (_isLoading)
+                  const Positioned(
+                    top: 20,
+                    left: 0,
+                    right: 0,
+                    child: Center(
+                      child: CircularProgressIndicator(
+                        color: Color(0xFF111727),
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
+
           _buildBottomMapButton(
             isFR ? "Choisir sur la carte" : "Set location on the map",
           ),
@@ -141,6 +208,7 @@ class _DestinationViewState extends State<DestinationView> {
     );
   }
 
+  // --- WIDGETS DE CONSTRUCTION ---
   Widget _buildInputBox({
     required TextEditingController controller,
     required IconData icon,
@@ -148,18 +216,18 @@ class _DestinationViewState extends State<DestinationView> {
     required String hint,
     bool isDestination = false,
     bool enabled = true,
+    Function(String)? onChanged,
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: enabled
-            ? Colors.grey[100]
-            : Colors.grey[50], // Plus clair si désactivé
+        color: enabled ? Colors.grey[100] : Colors.grey[50],
         borderRadius: BorderRadius.circular(8),
       ),
       child: TextField(
         controller: controller,
         enabled: enabled,
         autofocus: isDestination,
+        onChanged: onChanged,
         style: TextStyle(
           color: enabled ? Colors.black87 : Colors.grey[600],
           fontSize: 15,
@@ -199,8 +267,9 @@ class _DestinationViewState extends State<DestinationView> {
   Widget _buildHistoryTile(
     String title,
     String subtitle,
-    IconData leadingIcon,
-  ) {
+    IconData leadingIcon, {
+    VoidCallback? onTap,
+  }) {
     return ListTile(
       leading: Container(
         padding: const EdgeInsets.all(8),
@@ -217,8 +286,9 @@ class _DestinationViewState extends State<DestinationView> {
       subtitle: Text(
         subtitle,
         style: const TextStyle(color: Colors.grey, fontSize: 13),
+        overflow: TextOverflow.ellipsis,
       ),
-      onTap: () {},
+      onTap: onTap,
     );
   }
 
