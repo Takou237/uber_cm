@@ -1,0 +1,9 @@
+2026/02/14-01:38:16.299 5570 Reusing MANIFEST /home/benzdev/uber_cm/uber_backend/sessions/session/Default/IndexedDB/https_web.whatsapp.com_0.indexeddb.leveldb/MANIFEST-000001
+2026/02/14-01:38:16.303 5570 Recovering log #48
+2026/02/14-01:38:16.476 5570 Reusing old log /home/benzdev/uber_cm/uber_backend/sessions/session/Default/IndexedDB/https_web.whatsapp.com_0.indexeddb.leveldb/000048.log 
+2026/02/14-01:38:32.802 5570 Compacting 1@1 + 1@2 files
+2026/02/14-01:38:32.968 5570 Generated table #52@1: 22054 keys, 897111 bytes
+2026/02/14-01:38:32.968 5570 Compacted 1@1 + 1@2 files => 897111 bytes
+2026/02/14-01:38:32.973 5570 compacted to: files[ 0 0 1 0 0 0 0 ]
+2026/02/14-01:38:32.974 5570 Delete type=2 #5
+2026/02/14-01:38:32.974 5570 Delete type=2 #50

@@ -589,6 +589,7 @@ class _HomeViewState extends State<HomeView> {
     );
   }
 
+<<<<<<< HEAD
   Widget _buildCircleButton(IconData icon, {VoidCallback? onTap}) {
     return GestureDetector(
       onTap: onTap,
@@ -600,6 +601,21 @@ class _HomeViewState extends State<HomeView> {
           boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)],
         ),
         child: Icon(icon, color: Colors.black87),
+=======
+  // Tes autres widgets restent identiques...
+  Widget _buildFloatingButton(IconData icon, {VoidCallback? onTap}) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues( alpha:0.1), blurRadius: 10),
+        ],
+      ),
+      child: IconButton(
+        icon: Icon(icon, color: Colors.black87),
+        onPressed: onTap,
+>>>>>>> ae0e806298fd5c76ad2f50b365507b8b41adb415
       ),
     );
   }

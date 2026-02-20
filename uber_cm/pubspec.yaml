@@ -12,7 +12,7 @@ dependencies:
     sdk: flutter
   google_maps_flutter: ^2.10.0  
   
-  http: ^1.1.0
+  http: ^1.6.0
   cupertino_icons: ^1.0.8
   provider: ^6.1.5+1
   pinput: ^6.0.1
