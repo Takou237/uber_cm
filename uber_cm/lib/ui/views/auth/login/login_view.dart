@@ -66,7 +66,7 @@ class _LoginViewState extends State<LoginView> {
   
   try {
     final response = await http.post(
-      Uri.parse('https://uberbackend-production-e8ea.up.railway.app/auth/request-otp'),
+      Uri.parse('https://uberbackend-production-e8ea.up.railway.app/api/auth/request-otp'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({
         'phone': phoneNumber,
@@ -96,6 +96,10 @@ class _LoginViewState extends State<LoginView> {
       _triggerErrorEffect();
     }
   } catch (e) {
+    debugPrint("DEBUG ERROR: $e");
+    if (e is FormatException) {
+     debugPrint("Le serveur a renvoyé du HTML au lieu de JSON. Vérifie l'état de Railway.");
+  }
     _triggerErrorEffect();
     _showErrorSnackBar(widget.lang == "FR" ? "Erreur de connexion" : "Connection error");
   } finally {

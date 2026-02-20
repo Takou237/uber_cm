@@ -63,7 +63,7 @@ class _OtpViewState extends State<OtpView> {
 
     try {
       final response = await http.post(
-        Uri.parse('https://uberbackend-production-e8ea.up.railway.app/auth/verify-otp'),
+        Uri.parse('https://uberbackend-production-e8ea.up.railway.app/api/auth/verify-otp'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'phone': widget.phone,
