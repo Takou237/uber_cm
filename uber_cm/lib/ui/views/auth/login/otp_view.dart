@@ -1,9 +1,10 @@
-// lib/ui/views/auth/otp_view.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'dart:async'; // Ajouté pour le Timer
+import 'dart:async';
+import 'package:provider/provider.dart';
+import '../../../../data/providers/user_provider.dart';
 import '../../home/home_view.dart'; 
 
 class OtpView extends StatefulWidget {
@@ -22,8 +23,6 @@ class _OtpViewState extends State<OtpView> {
   String _currentValue = "";
   bool _hasError = false;
   bool _isLoading = false;
-
-  // Variables pour le Timer
   Timer? _timer;
   int _start = 30;
   bool _canResend = false;
@@ -31,7 +30,7 @@ class _OtpViewState extends State<OtpView> {
   @override
   void initState() {
     super.initState();
-    _startTimer(); // Démarrer le timer dès l'affichage
+    _startTimer();
     _otpController.addListener(() {
       setState(() {
         _currentValue = _otpController.text;
@@ -42,32 +41,19 @@ class _OtpViewState extends State<OtpView> {
 
   @override
   void dispose() {
-    _timer?.cancel(); // Très important
+    _timer?.cancel();
     _otpController.dispose();
     super.dispose();
   }
 
-  // --- LOGIQUE DU TIMER ---
   void _startTimer() {
-    setState(() {
-      _canResend = false;
-      _start = 30;
-    });
+    setState(() { _canResend = false; _start = 30; });
     _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (_start == 0) {
-        if (mounted) {
-          setState(() {
-            timer.cancel();
-            _canResend = true;
-          });
-        }
+        if (mounted) setState(() { timer.cancel(); _canResend = true; });
       } else {
-        if (mounted) {
-          setState(() {
-            _start--;
-          });
-        }
+        if (mounted) setState(() { _start--; });
       }
     });
   }
@@ -79,25 +65,15 @@ class _OtpViewState extends State<OtpView> {
     });
   }
 
-  void _navigateToHome() {
-    Navigator.pushAndRemoveUntil(
-      context, 
-      MaterialPageRoute(builder: (context) => const HomeView()),
-      (route) => false,
-    );
-  }
-
-  // --- RENVOYER LE CODE ---
+  // --- AJOUT DE LA FONCTION DE RENVOI ---
   Future<void> _resendCode() async {
     if (!_canResend || _isLoading) return;
-
     setState(() => _isLoading = true);
-
     try {
       final response = await http.post(
         Uri.parse('https://uberbackend-production-e8ea.up.railway.app/api/auth/request-otp'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'phone': widget.phone}),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({"phone": widget.phone}),
       ).timeout(const Duration(seconds: 15));
 
       if (!mounted) return;
@@ -105,10 +81,7 @@ class _OtpViewState extends State<OtpView> {
 
       if (response.statusCode == 200) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(widget.lang == "FR" ? "Code renvoyé !" : "Code resent!"),
-            backgroundColor: Colors.green,
-          ),
+          SnackBar(content: Text(widget.lang == "FR" ? "Code renvoyé !" : "Code resent !"), backgroundColor: Colors.green),
         );
         _startTimer();
       } else {
@@ -120,7 +93,6 @@ class _OtpViewState extends State<OtpView> {
     }
   }
 
-  // --- VALIDER L'OTP ---
   Future<void> _validateOtp() async {
     if (_otpController.text.length < 4) {
       _triggerErrorEffect();
@@ -141,10 +113,20 @@ class _OtpViewState extends State<OtpView> {
 
       if (!mounted) return;
 
-      final data = jsonDecode(response.body);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final userData = data['user'];
+        final String name = userData?['name'] ?? "Utilisateur Uber";
+        final String phone = userData?['phone'] ?? widget.phone;
 
-      if (response.statusCode == 200 && data['success'] == true) {
-        _navigateToHome();
+        await Provider.of<UserProvider>(context, listen: false).setUser(name, phone);
+
+        if (!mounted) return;
+        Navigator.pushAndRemoveUntil(
+          context, 
+          MaterialPageRoute(builder: (context) => const HomeView()),
+          (route) => false,
+        );
       } else {
         _triggerErrorEffect();
       }
@@ -163,36 +145,21 @@ class _OtpViewState extends State<OtpView> {
         : "Enter the code sent to ${widget.phone}";
     String resendText = (widget.lang == "FR") ? "Renvoyer le code" : "Resend code";
     String confirmBtn = (widget.lang == "FR") ? "Confirmer" : "Confirm";
-    
     Color feedbackColor = _hasError ? Colors.red : Colors.black;
 
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.white, 
-        elevation: 0, 
-        iconTheme: const IconThemeData(color: Colors.black)
-      ),
+      appBar: AppBar(backgroundColor: Colors.white, elevation: 0, iconTheme: const IconThemeData(color: Colors.black)),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24.0),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               const SizedBox(height: 20),
-              Align(
-                alignment: Alignment.centerLeft, 
-                child: Text(title, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold))
-              ),
+              Align(alignment: Alignment.centerLeft, child: Text(title, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold))),
               const SizedBox(height: 12),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(subtitle, style: TextStyle(color: Colors.grey[600], fontSize: 16))
-              ),
-              
+              Align(alignment: Alignment.centerLeft, child: Text(subtitle, style: TextStyle(color: Colors.grey[600], fontSize: 16))),
               const SizedBox(height: 60),
-
-              // Zone de saisie OTP
               Stack(
                 alignment: Alignment.center,
                 children: [
@@ -215,16 +182,9 @@ class _OtpViewState extends State<OtpView> {
                           padding: const EdgeInsets.symmetric(horizontal: 12.0),
                           child: Column(
                             children: [
-                              Text(
-                                hasChar ? _currentValue[index] : "", 
-                                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: feedbackColor)
-                              ),
+                              Text(hasChar ? _currentValue[index] : "", style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: feedbackColor)),
                               const SizedBox(height: 8),
-                              Container(
-                                width: 40, 
-                                height: 3, 
-                                color: _hasError ? Colors.red : (hasChar ? Colors.black : Colors.grey[200])
-                              ),
+                              Container(width: 40, height: 3, color: _hasError ? Colors.red : (hasChar ? Colors.black : Colors.grey[200])),
                             ],
                           ),
                         );
@@ -233,25 +193,21 @@ class _OtpViewState extends State<OtpView> {
                   ),
                 ],
               ),
-
               const SizedBox(height: 40),
-
-              // Bouton Renvoyer avec Timer
+              
+              // --- CORRECTION DU BOUTON ICI ---
               TextButton(
-                onPressed: (_isLoading || !_canResend) ? null : _resendCode,
+                onPressed: (_isLoading || !_canResend) ? null : _resendCode, // <-- Appel à _resendCode
                 child: Text(
                   _canResend ? resendText : "$resendText ($_start s)",
                   style: TextStyle(
                     color: _canResend ? brandPink : Colors.grey, 
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15
+                    fontWeight: FontWeight.bold
                   ),
                 ),
               ),
 
               const Spacer(),
-
-              // Bouton Confirmer
               Align(
                 alignment: Alignment.bottomRight,
                 child: Padding(
@@ -262,18 +218,10 @@ class _OtpViewState extends State<OtpView> {
                       backgroundColor: _hasError ? Colors.red : brandPink,
                       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-                      elevation: 0,
                     ),
                     child: _isLoading 
                       ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                      : Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(confirmBtn, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 17)),
-                            const SizedBox(width: 10),
-                            const Icon(Icons.arrow_forward_rounded, color: Colors.white),
-                          ],
-                        ),
+                      : Row(mainAxisSize: MainAxisSize.min, children: [Text(confirmBtn, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 17)), const SizedBox(width: 10), const Icon(Icons.arrow_forward_rounded, color: Colors.white)]),
                   ),
                 ),
               ),

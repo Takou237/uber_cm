@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../data/providers/user_provider.dart';
+import '../auth/welcome_view.dart'; // Import indispensable pour la redirection
 
 class AccountView extends StatelessWidget {
   const AccountView({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // On récupère les données du UserProvider
     final userProv = Provider.of<UserProvider>(context);
 
     return Scaffold(
@@ -23,7 +23,6 @@ class AccountView extends StatelessWidget {
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // Header Profil Dynamique
             Padding(
               padding: const EdgeInsets.all(20.0),
               child: Row(
@@ -37,13 +36,11 @@ class AccountView extends StatelessWidget {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Affiche le nom enregistré
                       Text(
                         userProv.name, 
                         style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)
                       ),
                       const SizedBox(height: 5),
-                      // Affiche le téléphone enregistré
                       Text(
                         userProv.phone.isNotEmpty ? userProv.phone : "Aucun numéro",
                         style: TextStyle(color: Colors.grey[600], fontSize: 14),
@@ -57,7 +54,6 @@ class AccountView extends StatelessWidget {
             ),
             const Divider(),
 
-            // Menu Options
             _buildMenuItem(Icons.wallet, "Paiement", "Espèces, Orange Money, MoMo"),
             _buildMenuItem(Icons.history, "Mes trajets", "Consultez l'historique"),
             _buildMenuItem(Icons.card_giftcard, "Promotions", "Codes promos et parrainage"),
@@ -66,17 +62,13 @@ class AccountView extends StatelessWidget {
             
             const SizedBox(height: 30),
             
-            // Bouton Déconnexion
             ListTile(
               leading: const Icon(Icons.logout, color: Colors.red),
               title: const Text(
                 "Déconnexion", 
                 style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)
               ),
-              onTap: () {
-                // Ici tu pourras appeler une méthode pour vider les SharedPreferences
-                _showLogoutDialog(context);
-              },
+              onTap: () => _showLogoutDialog(context),
             ),
           ],
         ),
@@ -117,18 +109,30 @@ class AccountView extends StatelessWidget {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text("Déconnexion"),
-        content: const Text("Voulez-vous vraiment vous déconnecter ?"),
+        content: const Text("Voulez-vous vraiment vous déconnecter ? Cela effacera vos données de session."),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context), 
-            child: const Text("ANNULER")
+            child: const Text("ANNULER", style: TextStyle(color: Colors.grey))
           ),
           TextButton(
-            onPressed: () {
-              // Logique de déconnexion à ajouter ici
+            onPressed: () async {
+              // 1. Fermer la boîte de dialogue
               Navigator.pop(context);
+              
+              // 2. Appeler la déconnexion via le Provider
+              await Provider.of<UserProvider>(context, listen: false).logout();
+              
+              // 3. Rediriger vers WelcomeView et vider la pile de navigation
+              if (context.mounted) {
+                Navigator.pushAndRemoveUntil(
+                  context, 
+                  MaterialPageRoute(builder: (context) => const WelcomeView()),
+                  (route) => false, // Efface tout l'historique
+                );
+              }
             }, 
-            child: const Text("OUI", style: TextStyle(color: Colors.red))
+            child: const Text("OUI, DÉCONNEXION", style: TextStyle(color: Colors.red))
           ),
         ],
       ),

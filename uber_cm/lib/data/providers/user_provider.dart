@@ -25,4 +25,12 @@ class UserProvider extends ChangeNotifier {
     _phone = phone;
     notifyListeners();
   }
+
+  Future<void> logout() async {
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.clear(); // Efface tout (nom, téléphone, etc.)
+  _name = "Utilisateur";
+  _phone = "";
+  notifyListeners();
+}
 }
