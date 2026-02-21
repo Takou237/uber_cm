@@ -1,21 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-// Tes imports
 import 'core/constants/app_colors.dart';
 import 'data/providers/auth_provider.dart';
 import 'data/providers/location_provider.dart';
 import 'data/providers/order_provider.dart';
-import 'ui/views/auth/welcome_view.dart'; // Assure-toi que ce chemin est correct
+import 'data/providers/user_provider.dart';
+import 'ui/views/auth/welcome_view.dart';
+import 'ui/views/home/home_view.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  final userProvider = UserProvider();
+  await userProvider.loadUserData();
+
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => LocationProvider()),
         ChangeNotifierProvider(create: (_) => OrderProvider()),
+        ChangeNotifierProvider.value(value: userProvider),
       ],
       child: const UberCMApp(),
     ),
@@ -27,6 +33,8 @@ class UberCMApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final userProv = Provider.of<UserProvider>(context);
+
     return MaterialApp(
       title: 'Uber CM',
       debugShowCheckedModeBanner: false,
@@ -36,9 +44,11 @@ class UberCMApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: AppColors.primaryRed),
         useMaterial3: true,
       ),
-      // C'EST ICI QUE ÇA SE PASSE :
-      // Remplace "MyHomePage(...)" par "WelcomeView()"
-      home: const WelcomeView(),
+      // LOGIQUE DE DÉMARRAGE : 
+      // Si un nom est déjà enregistré, on va direct à la Home, sinon Welcome.
+      home: userProv.name != "Utilisateur" 
+          ? const HomeView() 
+          : const WelcomeView(),
     );
   }
 }
