@@ -1,7 +1,9 @@
+// lib/ui/views/auth/otp_view.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'dart:async'; // Ajouté pour le Timer
 import '../../home/home_view.dart'; 
 
 class OtpView extends StatefulWidget {
@@ -21,9 +23,15 @@ class _OtpViewState extends State<OtpView> {
   bool _hasError = false;
   bool _isLoading = false;
 
+  // Variables pour le Timer
+  Timer? _timer;
+  int _start = 30;
+  bool _canResend = false;
+
   @override
   void initState() {
     super.initState();
+    _startTimer(); // Démarrer le timer dès l'affichage
     _otpController.addListener(() {
       setState(() {
         _currentValue = _otpController.text;
@@ -34,8 +42,34 @@ class _OtpViewState extends State<OtpView> {
 
   @override
   void dispose() {
+    _timer?.cancel(); // Très important
     _otpController.dispose();
     super.dispose();
+  }
+
+  // --- LOGIQUE DU TIMER ---
+  void _startTimer() {
+    setState(() {
+      _canResend = false;
+      _start = 30;
+    });
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_start == 0) {
+        if (mounted) {
+          setState(() {
+            timer.cancel();
+            _canResend = true;
+          });
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            _start--;
+          });
+        }
+      }
+    });
   }
 
   void _triggerErrorEffect() {
@@ -48,11 +82,45 @@ class _OtpViewState extends State<OtpView> {
   void _navigateToHome() {
     Navigator.pushAndRemoveUntil(
       context, 
-      MaterialPageRoute(builder: (context) => HomeView(lang: widget.lang)),
+      MaterialPageRoute(builder: (context) => const HomeView()),
       (route) => false,
     );
   }
 
+  // --- RENVOYER LE CODE ---
+  Future<void> _resendCode() async {
+    if (!_canResend || _isLoading) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      final response = await http.post(
+        Uri.parse('https://uberbackend-production-e8ea.up.railway.app/api/auth/request-otp'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'phone': widget.phone}),
+      ).timeout(const Duration(seconds: 15));
+
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+
+      if (response.statusCode == 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(widget.lang == "FR" ? "Code renvoyé !" : "Code resent!"),
+            backgroundColor: Colors.green,
+          ),
+        );
+        _startTimer();
+      } else {
+        _triggerErrorEffect();
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isLoading = false);
+      _triggerErrorEffect();
+    }
+  }
+
+  // --- VALIDER L'OTP ---
   Future<void> _validateOtp() async {
     if (_otpController.text.length < 4) {
       _triggerErrorEffect();
@@ -67,9 +135,9 @@ class _OtpViewState extends State<OtpView> {
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'phone': widget.phone,
-          'code': _otpController.text,
+          'code': _otpController.text.trim(),
         }),
-      );
+      ).timeout(const Duration(seconds: 15));
 
       if (!mounted) return;
 
@@ -90,68 +158,127 @@ class _OtpViewState extends State<OtpView> {
   @override
   Widget build(BuildContext context) {
     String title = (widget.lang == "FR") ? "Vérification" : "Verification";
+    String subtitle = (widget.lang == "FR")
+        ? "Saisissez le code envoyé au ${widget.phone}"
+        : "Enter the code sent to ${widget.phone}";
+    String resendText = (widget.lang == "FR") ? "Renvoyer le code" : "Resend code";
     String confirmBtn = (widget.lang == "FR") ? "Confirmer" : "Confirm";
+    
     Color feedbackColor = _hasError ? Colors.red : Colors.black;
 
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(backgroundColor: Colors.white, elevation: 0, iconTheme: const IconThemeData(color: Colors.black)),
-      body: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24.0),
-        child: Column(
-          children: [
-            const SizedBox(height: 20),
-            Align(alignment: Alignment.centerLeft, child: Text(title, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold))),
-            const SizedBox(height: 60),
-            Stack(
-              alignment: Alignment.center,
-              children: [
-                TextField(
-                  controller: _otpController,
-                  keyboardType: TextInputType.number,
-                  autofocus: true,
-                  maxLength: 4,
-                  showCursor: false,
-                  style: const TextStyle(color: Colors.transparent),
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  decoration: const InputDecoration(counterText: "", border: InputBorder.none),
-                ),
-                IgnorePointer(
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: List.generate(4, (index) {
-                      bool hasChar = _currentValue.length > index;
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12.0),
-                        child: Column(
-                          children: [
-                            Text(hasChar ? _currentValue[index] : "", style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: feedbackColor)),
-                            Container(width: 40, height: 3, color: _hasError ? Colors.red : (hasChar ? Colors.black : Colors.grey[200])),
-                          ],
-                        ),
-                      );
-                    }),
+      appBar: AppBar(
+        backgroundColor: Colors.white, 
+        elevation: 0, 
+        iconTheme: const IconThemeData(color: Colors.black)
+      ),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              const SizedBox(height: 20),
+              Align(
+                alignment: Alignment.centerLeft, 
+                child: Text(title, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold))
+              ),
+              const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(subtitle, style: TextStyle(color: Colors.grey[600], fontSize: 16))
+              ),
+              
+              const SizedBox(height: 60),
+
+              // Zone de saisie OTP
+              Stack(
+                alignment: Alignment.center,
+                children: [
+                  TextField(
+                    controller: _otpController,
+                    keyboardType: TextInputType.number,
+                    autofocus: true,
+                    maxLength: 4,
+                    showCursor: false,
+                    style: const TextStyle(color: Colors.transparent),
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    decoration: const InputDecoration(counterText: "", border: InputBorder.none),
+                  ),
+                  IgnorePointer(
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: List.generate(4, (index) {
+                        bool hasChar = _currentValue.length > index;
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                          child: Column(
+                            children: [
+                              Text(
+                                hasChar ? _currentValue[index] : "", 
+                                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: feedbackColor)
+                              ),
+                              const SizedBox(height: 8),
+                              Container(
+                                width: 40, 
+                                height: 3, 
+                                color: _hasError ? Colors.red : (hasChar ? Colors.black : Colors.grey[200])
+                              ),
+                            ],
+                          ),
+                        );
+                      }),
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 40),
+
+              // Bouton Renvoyer avec Timer
+              TextButton(
+                onPressed: (_isLoading || !_canResend) ? null : _resendCode,
+                child: Text(
+                  _canResend ? resendText : "$resendText ($_start s)",
+                  style: TextStyle(
+                    color: _canResend ? brandPink : Colors.grey, 
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15
                   ),
                 ),
-              ],
-            ),
-            const Spacer(),
-            Align(
-              alignment: Alignment.bottomRight,
-              child: ElevatedButton(
-                onPressed: _isLoading ? null : _validateOtp,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _hasError ? Colors.red : brandPink,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-                ),
-                child: _isLoading 
-                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                  : Text(confirmBtn, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
               ),
-            ),
-            const SizedBox(height: 20),
-          ],
+
+              const Spacer(),
+
+              // Bouton Confirmer
+              Align(
+                alignment: Alignment.bottomRight,
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 20.0),
+                  child: ElevatedButton(
+                    onPressed: _isLoading ? null : _validateOtp,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _hasError ? Colors.red : brandPink,
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                      elevation: 0,
+                    ),
+                    child: _isLoading 
+                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      : Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(confirmBtn, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 17)),
+                            const SizedBox(width: 10),
+                            const Icon(Icons.arrow_forward_rounded, color: Colors.white),
+                          ],
+                        ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

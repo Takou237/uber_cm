@@ -65,46 +65,59 @@ class _PhoneRegistrationViewState extends State<PhoneRegistrationView> {
   }
 
   // --- APPEL API ---
-Future<void> _sendOtpRequest(String method) async {
-  final String phoneNumber = "+237${_phoneController.text.trim()}";
-  
-  // Fermer le sélecteur avant de lancer le chargement
-  if (Navigator.canPop(context)) Navigator.pop(context); 
+  Future<void> _sendOtpRequest(String method) async {
+    final String phoneNumber = "+237${_phoneController.text.trim()}";
+    
+    if (Navigator.canPop(context)) Navigator.pop(context); 
 
-  showDialog(
-    context: context,
-    barrierDismissible: false,
-    builder: (context) => const Center(child: CircularProgressIndicator(color: Color(0xFFE91E63))),
-  );
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator(color: Color(0xFFE91E63))),
+    );
 
-  try {
-    // UTILISATION DE TON URL RAILWAY
-    final response = await http.post(
-      Uri.parse('https://uberbackend-production-e8ea.up.railway.app/api/auth/request-otp'),
-      headers: {"Content-Type": "application/json"},
-      body: jsonEncode({
-        "phone": phoneNumber,
-        "name": widget.userName,
-        "email": widget.userEmail,
-        "method": method, // Le backend forcera l'email mais on garde la structure
-      }),
-    ).timeout(const Duration(seconds: 15)); // Augmentation du timeout pour le réseau mobile
+    try {
+      // --- ÉTAPE 1 : ON ENREGISTRE D'ABORD L'UTILISATEUR ---
+      final registerResponse = await http.post(
+        Uri.parse('https://uberbackend-production-e8ea.up.railway.app/api/auth/register'),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({
+          "phone": phoneNumber,
+          "name": widget.userName,
+          "email": widget.userEmail,
+        }),
+      );
 
-    if (!mounted) return;
-    Navigator.pop(context); // Fermer le loader
+      // Si le code est 201 (créé) ou 400 (déjà existant), on peut continuer vers l'OTP
+      if (registerResponse.statusCode == 201 || registerResponse.statusCode == 400) {
+        
+        // --- ÉTAPE 2 : ON DEMANDE L'OTP ---
+        final otpResponse = await http.post(
+          Uri.parse('https://uberbackend-production-e8ea.up.railway.app/api/auth/request-otp'),
+          headers: {"Content-Type": "application/json"},
+          body: jsonEncode({"phone": phoneNumber}),
+        );
 
-    if (response.statusCode == 200) {
-      _navigateToOtp(phoneNumber);
-    } else {
-      _handleRequestFailure(phoneNumber, "Erreur serveur (${response.statusCode})");
+        if (!mounted) return;
+        Navigator.pop(context); // Fermer le loader
+
+        if (otpResponse.statusCode == 200) {
+          _navigateToOtp(phoneNumber);
+        } else {
+          _handleRequestFailure(phoneNumber, "Erreur OTP (${otpResponse.statusCode})");
+        }
+      } else {
+        if (!mounted) return;
+        Navigator.pop(context);
+        _handleRequestFailure(phoneNumber, "Erreur Inscription (${registerResponse.statusCode})");
+      }
+    } catch (e) {
+      if (mounted) Navigator.pop(context);
+      _handleRequestFailure(phoneNumber, "Erreur de connexion");
     }
-  } catch (e) {
-    if (mounted) Navigator.pop(context); // Fermer le loader
-    _handleRequestFailure(phoneNumber, "Impossible de contacter le serveur");
-    debugPrint("Détails de l'erreur: $e");
   }
-}
 
+  // --- GESTION DES ERREURS D'APPEL ---
   void _handleRequestFailure(String phone, String reason) {
     _triggerErrorEffect();
     ScaffoldMessenger.of(context).showSnackBar(

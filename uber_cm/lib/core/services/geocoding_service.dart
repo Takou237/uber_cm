@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:osm_nominatim/osm_nominatim.dart';
 
 class GeocodingService {
@@ -17,7 +18,7 @@ class GeocodingService {
         countryCodes: ['cm'],
       );
     } catch (e) {
-      print("Erreur de recherche : $e");
+      debugPrint("Erreur de recherche : $e");
       return [];
     }
   }

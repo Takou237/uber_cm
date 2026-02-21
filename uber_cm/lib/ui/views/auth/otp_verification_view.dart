@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../home/home_view.dart'; 
+import 'dart:async';
 
 class OtpVerificationView extends StatefulWidget {
   final String lang;
@@ -21,10 +22,16 @@ class _OtpVerificationViewState extends State<OtpVerificationView> {
   String _currentValue = "";
   bool _hasError = false;
   bool _isLoading = false;
+  
+  // Variables pour le Timer
+  Timer? _timer;
+  int _start = 30;
+  bool _canResend = false;
 
   @override
   void initState() {
     super.initState();
+    _startTimer(); // Lancer le compte à rebours dès l'arrivée
     _otpController.addListener(() {
       setState(() {
         _currentValue = _otpController.text;
@@ -35,8 +42,34 @@ class _OtpVerificationViewState extends State<OtpVerificationView> {
 
   @override
   void dispose() {
+    _timer?.cancel(); // Toujours annuler le timer pour éviter les fuites de mémoire
     _otpController.dispose();
     super.dispose();
+  }
+
+  // --- LOGIQUE DU TIMER ---
+  void _startTimer() {
+    setState(() {
+      _canResend = false;
+      _start = 30;
+    });
+    _timer?.cancel(); // Annuler l'ancien timer s'il existe
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_start == 0) {
+        if (mounted) {
+          setState(() {
+            timer.cancel();
+            _canResend = true;
+          });
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            _start--;
+          });
+        }
+      }
+    });
   }
 
   void _triggerErrorEffect() {
@@ -46,45 +79,77 @@ class _OtpVerificationViewState extends State<OtpVerificationView> {
     });
   }
 
-  Future<void> _verifyOtp() async {
-  if (_otpController.text.length < 4) {
-    _triggerErrorEffect();
-    return;
-  }
+  // --- RENVOYER LE CODE ---
+  Future<void> _resendCode() async {
+    if (!_canResend || _isLoading) return;
 
-  setState(() => _isLoading = true);
+    setState(() => _isLoading = true);
 
-  try {
-    // UTILISATION DE TON URL RAILWAY
-    final response = await http.post(
-      Uri.parse('https://uberbackend-production-e8ea.up.railway.app/api/auth/verify-otp'),
-      headers: {"Content-Type": "application/json"},
-      body: jsonEncode({
-        "phone": widget.phoneNumber ?? "",
-        "code": _otpController.text.trim()
-      }),
-    ).timeout(const Duration(seconds: 15));
+    try {
+      final response = await http.post(
+        Uri.parse('https://uberbackend-production-e8ea.up.railway.app/api/auth/request-otp'),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({"phone": widget.phoneNumber}),
+      ).timeout(const Duration(seconds: 15));
 
-    if (!mounted) return;
-    setState(() => _isLoading = false);
+      if (!mounted) return;
+      setState(() => _isLoading = false);
 
-    if (response.statusCode == 200) {
-      Navigator.pushAndRemoveUntil(
-        context, 
-        MaterialPageRoute(builder: (context) => HomeView(lang: widget.lang)),
-        (route) => false,
-      );
-    } else {
+      if (response.statusCode == 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Nouveau code envoyé !"), 
+            backgroundColor: Colors.green
+          ),
+        );
+        _startTimer(); // Relancer le timer de 30s
+      } else {
+        _triggerErrorEffect();
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isLoading = false);
       _triggerErrorEffect();
     }
-  } catch (e) {
-    if (mounted) setState(() => _isLoading = false);
-    _triggerErrorEffect();
-    _showBypassOption();
   }
-}
 
-  // Permet de passer à la Home même si le serveur ne répond pas (utile pour le dev)
+  // --- VÉRIFIER L'OTP ---
+  Future<void> _verifyOtp() async {
+    if (_otpController.text.length < 4) {
+      _triggerErrorEffect();
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final response = await http.post(
+        Uri.parse('https://uberbackend-production-e8ea.up.railway.app/api/auth/verify-otp'),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({
+          "phone": widget.phoneNumber ?? "",
+          "code": _otpController.text.trim()
+        }),
+      ).timeout(const Duration(seconds: 15));
+
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+
+      if (response.statusCode == 200) {
+        Navigator.pushAndRemoveUntil(
+          context, 
+          MaterialPageRoute(builder: (context) => const HomeView()),
+          (route) => false,
+        );
+      } else {
+        _triggerErrorEffect();
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isLoading = false);
+      _triggerErrorEffect();
+      _showBypassOption();
+    }
+  }
+
   void _showBypassOption() {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -94,7 +159,7 @@ class _OtpVerificationViewState extends State<OtpVerificationView> {
           onPressed: () {
             Navigator.pushAndRemoveUntil(
               context, 
-              MaterialPageRoute(builder: (context) => HomeView(lang: widget.lang)),
+              MaterialPageRoute(builder: (context) => const HomeView()),
               (route) => false,
             );
           },
@@ -149,95 +214,101 @@ class _OtpVerificationViewState extends State<OtpVerificationView> {
                       
                       const SizedBox(height: 60),
 
-                      Column(
-                        children: [
-                          SizedBox(
-                            width: double.infinity,
-                            child: Stack(
-                              alignment: Alignment.center,
-                              children: [
-                                TextField(
-                                  controller: _otpController,
-                                  keyboardType: TextInputType.number,
-                                  autofocus: true,
-                                  maxLength: 4,
-                                  showCursor: false,
-                                  style: const TextStyle(color: Colors.transparent),
-                                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                                  decoration: const InputDecoration(
-                                    counterText: "",
-                                    border: InputBorder.none,
-                                  ),
-                                ),
-                                IgnorePointer(
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: List.generate(4, (index) {
-                                      bool hasChar = _currentValue.length > index;
-                                      return Padding(
-                                        padding: const EdgeInsets.symmetric(horizontal: 12.0),
-                                        child: Column(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Text(
-                                              hasChar ? _currentValue[index] : "",
-                                              style: TextStyle(
-                                                fontSize: 28,
-                                                fontWeight: FontWeight.bold,
-                                                color: feedbackColor,
-                                              ),
-                                            ),
-                                            const SizedBox(height: 8),
-                                            AnimatedContainer(
-                                              duration: const Duration(milliseconds: 300),
-                                              width: 40, 
-                                              height: 3,
-                                              color: _hasError 
-                                                  ? Colors.red 
-                                                  : (hasChar ? Colors.black : Colors.grey[200]),
-                                            ),
-                                          ],
+                      // Zone OTP
+                      SizedBox(
+                        width: double.infinity,
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            TextField(
+                              controller: _otpController,
+                              keyboardType: TextInputType.number,
+                              autofocus: true,
+                              maxLength: 4,
+                              showCursor: false,
+                              style: const TextStyle(color: Colors.transparent),
+                              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                              decoration: const InputDecoration(
+                                counterText: "",
+                                border: InputBorder.none,
+                              ),
+                            ),
+                            IgnorePointer(
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: List.generate(4, (index) {
+                                  bool hasChar = _currentValue.length > index;
+                                  return Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          hasChar ? _currentValue[index] : "",
+                                          style: TextStyle(
+                                            fontSize: 28,
+                                            fontWeight: FontWeight.bold,
+                                            color: feedbackColor,
+                                          ),
                                         ),
-                                      );
-                                    }),
-                                  ),
-                                ),
-                              ],
+                                        const SizedBox(height: 8),
+                                        AnimatedContainer(
+                                          duration: const Duration(milliseconds: 300),
+                                          width: 40, 
+                                          height: 3,
+                                          color: _hasError 
+                                              ? Colors.red 
+                                              : (hasChar ? Colors.black : Colors.grey[200]),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }),
+                              ),
                             ),
-                          ),
-                          
-                          const SizedBox(height: 24),
+                          ],
+                        ),
+                      ),
+                      
+                      const SizedBox(height: 24),
 
-                          AnimatedOpacity(
-                            opacity: _hasError ? 1.0 : 0.0,
-                            duration: const Duration(milliseconds: 300),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(Icons.error_outline, color: Colors.red, size: 16),
-                                const SizedBox(width: 6),
-                                Text(
-                                  errorMsg,
-                                  style: const TextStyle(color: Colors.red, fontSize: 14, fontWeight: FontWeight.w500),
-                                ),
-                              ],
+                      // Message d'erreur
+                      AnimatedOpacity(
+                        opacity: _hasError ? 1.0 : 0.0,
+                        duration: const Duration(milliseconds: 300),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.error_outline, color: Colors.red, size: 16),
+                            const SizedBox(width: 6),
+                            Text(
+                              errorMsg,
+                              style: const TextStyle(color: Colors.red, fontSize: 14, fontWeight: FontWeight.w500),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
 
                       const SizedBox(height: 30),
 
+                      // Bouton Renvoyer
                       TextButton(
-                        onPressed: _isLoading ? null : () {},
+                        onPressed: (_isLoading || !_canResend) ? null : _resendCode,
                         child: Text(
-                          resendText,
-                          style: TextStyle(color: brandPink, fontWeight: FontWeight.bold, fontSize: 15),
+                          _canResend 
+                            ? resendText 
+                            : "$resendText ($_start s)",
+                          style: TextStyle(
+                            color: _canResend ? brandPink : Colors.grey, 
+                            fontWeight: FontWeight.bold, 
+                            fontSize: 15
+                          ),
                         ),
                       ),
 
                       const Spacer(),
 
+                      // Bouton Confirmer
                       Align(
                         alignment: Alignment.bottomRight,
                         child: Padding(

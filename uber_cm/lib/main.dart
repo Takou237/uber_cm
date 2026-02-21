@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 // Tes imports
 import 'core/constants/app_colors.dart';
 import 'data/providers/auth_provider.dart';
-import 'data/providers/map_provider.dart';
+import 'data/providers/location_provider.dart';
 import 'data/providers/order_provider.dart';
 import 'ui/views/auth/welcome_view.dart'; // Assure-toi que ce chemin est correct
 
@@ -14,7 +14,7 @@ void main() {
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
-        ChangeNotifierProvider(create: (_) => MapProvider()),
+        ChangeNotifierProvider(create: (_) => LocationProvider()),
         ChangeNotifierProvider(create: (_) => OrderProvider()),
       ],
       child: const UberCMApp(),
