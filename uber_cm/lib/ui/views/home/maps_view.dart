@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
+import 'package:firebase_database/firebase_database.dart'; // Ajout Firebase
 import 'package:osm_nominatim/osm_nominatim.dart';
 import 'destination_view.dart';
 import '../../../core/services/route_service.dart';
@@ -32,10 +33,15 @@ class MapsView extends StatefulWidget {
 
 class _MapsViewState extends State<MapsView> {
   GoogleMapController? _mapController;
-  String _currentAddress = "Localisation en cours..."; // Position GPS live
-  String _startAddress = ""; // Adresse fixe du point de départ pour le trajet
-  String _destinationAddress = ""; // Adresse de destination
+  String _currentAddress = "Localisation en cours...";
+  String _startAddress = "";
+  String _destinationAddress = "";
   LatLng? _userLocation;
+
+  // LOGIQUE RADAR (FIREBASE)
+  final DatabaseReference _driversRef = FirebaseDatabase.instance.ref().child(
+    "drivers_online",
+  );
 
   // LOGIQUE PAIEMENT
   String _paymentMethod = "Espèces";
@@ -65,9 +71,8 @@ class _MapsViewState extends State<MapsView> {
   ];
 
   double _rawDistanceKm = 0;
-
   StreamSubscription<Position>? _positionStream;
-  Set<Marker> _markers = {};
+  Set<Marker> _routeMarkers = {}; // Contient point A et point B
   Set<Polyline> _polylines = {};
   final RouteService _routeService = RouteService();
 
@@ -86,15 +91,13 @@ class _MapsViewState extends State<MapsView> {
 
   void _calculatePrice() {
     if (_rawDistanceKm == 0) return;
-    setState(() {
-      // Le prix est recalculé automatiquement dans l'UI via _rawDistanceKm
-    });
+    setState(() {});
   }
 
   void _resetNavigation() {
     setState(() {
       _polylines.clear();
-      _markers.clear();
+      _routeMarkers.clear();
       _rawDistanceKm = 0;
       _destinationAddress = "";
       _startAddress = "";
@@ -117,7 +120,6 @@ class _MapsViewState extends State<MapsView> {
 
       setState(() {
         _calculatePrice();
-
         _polylines = {
           Polyline(
             polylineId: const PolylineId("route"),
@@ -127,7 +129,7 @@ class _MapsViewState extends State<MapsView> {
           ),
         };
 
-        _markers = {
+        _routeMarkers = {
           Marker(
             markerId: const MarkerId("origin"),
             position: _userLocation!,
@@ -149,18 +151,16 @@ class _MapsViewState extends State<MapsView> {
     }
   }
 
-  // Sélection via recherche
   void _addDestinationMarker(Place place) {
     LatLng target = LatLng(place.lat, place.lon);
     setState(() {
-      _startAddress = _currentAddress; // On fige le départ
+      _startAddress = _currentAddress;
       _destinationAddress = place.displayName.split(',')[0];
     });
     _drawRoute(target);
     _mapController?.animateCamera(CameraUpdate.newLatLngZoom(target, 14));
   }
 
-  // Sélection via clic carte
   void _handleMapTap(LatLng latLng) async {
     setState(() {
       _startAddress = _currentAddress;
@@ -175,7 +175,8 @@ class _MapsViewState extends State<MapsView> {
       if (placemarks.isNotEmpty) {
         Placemark place = placemarks[0];
         setState(() {
-          _destinationAddress = place.street ?? place.name ?? 'Lieu sélectionné';
+          _destinationAddress =
+              place.street ?? place.name ?? 'Lieu sélectionné';
         });
       }
     } catch (e) {
@@ -186,69 +187,6 @@ class _MapsViewState extends State<MapsView> {
     _mapController?.animateCamera(CameraUpdate.newLatLng(latLng));
   }
 
-  // --- MODAL PAIEMENT ---
-
-  void _showPaymentModal() {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
-      ),
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              "Modes de paiement",
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 20),
-            _buildPayOption(
-              "Orange Money",
-              Icons.account_balance_wallet,
-              Colors.orange,
-            ),
-            _buildPayOption(
-              "Mobile Money",
-              Icons.vibration,
-              Colors.yellow[800]!,
-            ),
-            _buildPayOption("Espèces", Icons.money, Colors.green),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFF04B5E),
-                minimumSize: const Size(double.infinity, 50),
-              ),
-              onPressed: () => Navigator.pop(context),
-              child: const Text(
-                "Terminer",
-                style: TextStyle(color: Colors.white),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPayOption(String name, IconData icon, Color color) {
-    return ListTile(
-      leading: Icon(icon, color: color),
-      title: Text(name),
-      trailing: Icon(
-        _paymentMethod == name ? Icons.check_circle : Icons.circle_outlined,
-        color: Colors.red,
-      ),
-      onTap: () => setState(() {
-        _paymentMethod = name;
-        _paymentIcon = icon;
-        Navigator.pop(context);
-      }),
-    );
-  }
-
   // --- INTERFACE (UI) ---
 
   @override
@@ -257,75 +195,101 @@ class _MapsViewState extends State<MapsView> {
     bool hasRoute = _polylines.isNotEmpty;
 
     return Scaffold(
-      body: Stack(
-        children: [
-          GoogleMap(
-            initialCameraPosition: _kInitialPos,
-            myLocationButtonEnabled: false,
-            zoomControlsEnabled: false,
-            myLocationEnabled: true,
-            markers: _markers,
-            polylines: _polylines,
-            onMapCreated: (controller) {
-              _mapController = controller;
-              _determinePosition();
-            },
-            onTap: _handleMapTap,
-          ),
+      body: StreamBuilder(
+        stream: _driversRef.onValue,
+        builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
+          // On crée une copie des marqueurs de route (A et B)
+          Set<Marker> allMarkers = Set.from(_routeMarkers);
 
-          // BOUTON MENU (En haut)
-          if (!hasRoute)
-            Positioned(
-              top: 50,
-              left: 20,
-              child: _buildCircleButton(Icons.menu),
-            ),
-
-          // FLÈCHE RETOUR (Au dessus du panneau)
-          if (hasRoute)
-            Positioned(
-              bottom: 360,
-              left: 20,
-              child: _buildCircleButton(
-                Icons.arrow_back,
-                onTap: _resetNavigation,
-              ),
-            ),
-
-          if (!hasRoute)
-            Positioned(
-              right: 20,
-              top: MediaQuery.of(context).size.height * 0.3,
-              child: Column(
-                children: [
-                  _buildCircleButton(
-                    Icons.my_location,
-                    onTap: _determinePosition,
+          // On ajoute les chauffeurs récupérés depuis Firebase
+          if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
+            Map<dynamic, dynamic> drivers =
+                snapshot.data!.snapshot.value as Map<dynamic, dynamic>;
+            drivers.forEach((key, value) {
+              allMarkers.add(
+                Marker(
+                  markerId: MarkerId(key),
+                  position: LatLng(value['latitude'], value['longitude']),
+                  icon: BitmapDescriptor.defaultMarkerWithHue(
+                    BitmapDescriptor.hueYellow,
                   ),
-                  const SizedBox(height: 15),
-                  _buildCircleButton(Icons.search, onTap: _openSearch),
-                ],
+                  infoWindow: const InfoWindow(title: "Chauffeur Uber CM"),
+                ),
+              );
+            });
+          }
+
+          return Stack(
+            children: [
+              GoogleMap(
+                initialCameraPosition: _kInitialPos,
+                myLocationButtonEnabled: false,
+                zoomControlsEnabled: false,
+                myLocationEnabled: true,
+                markers: allMarkers,
+                polylines: _polylines,
+                onMapCreated: (controller) {
+                  _mapController = controller;
+                  _determinePosition();
+                },
+                onTap: _handleMapTap,
               ),
-            ),
 
-          Align(
-            alignment: Alignment.bottomCenter,
-            child: hasRoute
-                ? _buildRideSelectionPanel(isFR)
-                : _buildBottomPanel(isFR),
-          ),
+              if (!hasRoute)
+                Positioned(
+                  top: 50,
+                  left: 20,
+                  child: _buildCircleButton(Icons.menu),
+                ),
 
-          if (!hasRoute)
-            Positioned(
-              bottom: 275,
-              left: 0,
-              right: 0,
-              child: Center(child: _buildScanButton()),
-            ),
-        ],
+              if (hasRoute)
+                Positioned(
+                  bottom: 360,
+                  left: 20,
+                  child: _buildCircleButton(
+                    Icons.arrow_back,
+                    onTap: _resetNavigation,
+                  ),
+                ),
+
+              if (!hasRoute)
+                Positioned(
+                  right: 20,
+                  top: MediaQuery.of(context).size.height * 0.3,
+                  child: Column(
+                    children: [
+                      _buildCircleButton(
+                        Icons.my_location,
+                        onTap: _determinePosition,
+                      ),
+                      const SizedBox(height: 15),
+                      _buildCircleButton(Icons.search, onTap: _openSearch),
+                    ],
+                  ),
+                ),
+
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: hasRoute
+                    ? _buildRideSelectionPanel(isFR)
+                    : _buildBottomPanel(isFR),
+              ),
+
+              if (!hasRoute)
+                Positioned(
+                  bottom: 275,
+                  left: 0,
+                  right: 0,
+                  child: Center(child: _buildScanButton()),
+                ),
+            ],
+          );
+        },
       ),
     );
   }
+
+  // --- WIDGETS ET COMPOSANTS UI ---
 
   Widget _buildRideSelectionPanel(bool isFR) {
     return Container(
@@ -347,7 +311,6 @@ class _MapsViewState extends State<MapsView> {
               borderRadius: BorderRadius.circular(10),
             ),
           ),
-
           const SizedBox(height: 15),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -367,10 +330,8 @@ class _MapsViewState extends State<MapsView> {
               ],
             ),
           ),
-
           const SizedBox(height: 10),
           const Divider(),
-
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
@@ -380,17 +341,12 @@ class _MapsViewState extends State<MapsView> {
                     _vehicles[index].baseFare +
                     (_vehicles[index].pricePerKm * _rawDistanceKm);
                 return GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      _selectedVehicleIndex = index;
-                      _calculatePrice();
-                    });
-                  },
+                  onTap: () => setState(() {
+                    _selectedVehicleIndex = index;
+                    _calculatePrice();
+                  }),
                   child: Container(
-                    margin: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 10,
-                    ),
+                    margin: const EdgeInsets.all(10),
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
                       color: sel ? Colors.grey[100] : Colors.white,
@@ -427,9 +383,7 @@ class _MapsViewState extends State<MapsView> {
               }),
             ),
           ),
-
           const Divider(),
-
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 30),
             child: Row(
@@ -479,39 +433,6 @@ class _MapsViewState extends State<MapsView> {
     );
   }
 
-  Widget _buildAddressRow(
-    IconData icon,
-    String address,
-    Color iconColor, {
-    bool isDestination = false,
-  }) {
-    return Row(
-      children: [
-        Icon(icon, size: 22, color: iconColor),
-        const SizedBox(width: 15),
-        Expanded(
-          child: Text(
-            address,
-            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-        if (isDestination)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.grey[100],
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: const Text(
-              "Arrêts",
-              style: TextStyle(fontSize: 11, color: Colors.black54),
-            ),
-          ),
-      ],
-    );
-  }
-
   Widget _buildBottomPanel(bool isFR) {
     return Container(
       height: 310,
@@ -538,10 +459,7 @@ class _MapsViewState extends State<MapsView> {
             GestureDetector(
               onTap: _openSearch,
               child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 15,
-                  vertical: 15,
-                ),
+                padding: const EdgeInsets.all(15),
                 decoration: BoxDecoration(
                   color: Colors.grey[100],
                   borderRadius: BorderRadius.circular(12),
@@ -579,6 +497,27 @@ class _MapsViewState extends State<MapsView> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildAddressRow(
+    IconData icon,
+    String address,
+    Color iconColor, {
+    bool isDestination = false,
+  }) {
+    return Row(
+      children: [
+        Icon(icon, size: 22, color: iconColor),
+        const SizedBox(width: 15),
+        Expanded(
+          child: Text(
+            address,
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
     );
   }
 
@@ -657,6 +596,53 @@ class _MapsViewState extends State<MapsView> {
     );
   }
 
+  void _showPaymentModal() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              "Modes de paiement",
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 20),
+            _buildPayOption(
+              "Orange Money",
+              Icons.account_balance_wallet,
+              Colors.orange,
+            ),
+            _buildPayOption(
+              "Mobile Money",
+              Icons.vibration,
+              Colors.yellow[800]!,
+            ),
+            _buildPayOption("Espèces", Icons.money, Colors.green),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPayOption(String name, IconData icon, Color color) {
+    return ListTile(
+      leading: Icon(icon, color: color),
+      title: Text(name),
+      onTap: () => setState(() {
+        _paymentMethod = name;
+        _paymentIcon = icon;
+        Navigator.pop(context);
+      }),
+    );
+  }
+
+  // --- SERVICES ET LOGIQUE ---
+
   Future<void> _updateAddressFromCoords(double lat, double lon) async {
     try {
       List<Placemark> placemarks = await placemarkFromCoordinates(lat, lon);
@@ -673,9 +659,8 @@ class _MapsViewState extends State<MapsView> {
 
   Future<void> _determinePosition() async {
     LocationPermission permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
+    if (permission == LocationPermission.denied)
       permission = await Geolocator.requestPermission();
-    }
     Position position = await Geolocator.getCurrentPosition();
     _userLocation = LatLng(position.latitude, position.longitude);
     await _updateAddressFromCoords(position.latitude, position.longitude);

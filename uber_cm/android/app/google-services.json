@@ -1,0 +1,49 @@
+{
+  "project_info": {
+    "project_number": "1055505229690",
+    "firebase_url": "https://uber-279b6-default-rtdb.firebaseio.com",
+    "project_id": "uber-279b6",
+    "storage_bucket": "uber-279b6.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1055505229690:android:4f0528488ff621891e98c3",
+        "android_client_info": {
+          "package_name": "com.example.uber_cm"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC-MdYscR9pLz9ZXh3eV5do6pMPcHNDXpI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1055505229690:android:cbe0eead993879eb1e98c3",
+        "android_client_info": {
+          "package_name": "com.example.uber_cm_pro"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC-MdYscR9pLz9ZXh3eV5do6pMPcHNDXpI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

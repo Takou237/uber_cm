@@ -21,6 +21,9 @@ dependencies:
   osm_nominatim: ^4.0.1
   flutter_polyline_points: ^3.1.0
   shared_preferences: ^2.2.2
+  firebase_core: ^2.24.2
+  firebase_database: ^10.4.0
+
 
 dev_dependencies:
   flutter_test:
