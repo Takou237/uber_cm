@@ -22,3 +22,15 @@ subprojects {
 tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
 }
+
+// --- AJOUT POUR FIREBASE ICI ---
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        // Ajout du plugin Google Services (format Kotlin)
+        classpath("com.google.gms:google-services:4.4.0")
+    }
+}

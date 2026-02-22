@@ -1,6 +1,6 @@
 {
-    "name": "uber_cm",
-    "short_name": "uber_cm",
+    "name": "uber_cm_pro",
+    "short_name": "uber_cm_pro",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

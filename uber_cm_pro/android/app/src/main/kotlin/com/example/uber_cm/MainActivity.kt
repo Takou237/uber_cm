@@ -1,4 +1,4 @@
-package com.example.uber_cm
+package com.example.uber_cm_pro
 
 import io.flutter.embedding.android.FlutterActivity
 
