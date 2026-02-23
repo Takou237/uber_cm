@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../providers/language_provider.dart'; // Vérifie que ce chemin est exact
+import 'login/login_view.dart';
 import 'registration/registration_view.dart';
 
 class OnboardingProView extends StatelessWidget {
@@ -10,7 +11,7 @@ class OnboardingProView extends StatelessWidget {
   Widget build(BuildContext context) {
     // Couleurs du projet
     const Color brandPink = Color(0xFFE91E63);
-    
+
     // Accès au Provider de langue
     final langProv = Provider.of<LanguageProvider>(context);
     final bool isFr = langProv.currentLocale.languageCode == 'fr';
@@ -47,7 +48,10 @@ class OnboardingProView extends StatelessWidget {
           // 3. Contenu de la page
           SafeArea(
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 24.0,
+                vertical: 20.0,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -64,22 +68,32 @@ class OnboardingProView extends StatelessWidget {
                           letterSpacing: 1.2,
                         ),
                       ),
-                      
+
                       // Icône Globe avec Menu déroulant
                       PopupMenuButton<String>(
-                        icon: const Icon(Icons.language, color: Colors.white, size: 28),
+                        icon: const Icon(
+                          Icons.language,
+                          color: Colors.white,
+                          size: 28,
+                        ),
                         onSelected: (String code) {
                           langProv.changeLanguage(code);
                         },
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                         itemBuilder: (BuildContext context) => [
                           PopupMenuItem(
                             value: 'fr',
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Image.asset('assets/images/Français.png', width: 24, 
-                                  errorBuilder: (context, error, stackTrace) => const Icon(Icons.flag, size: 20)),
+                                Image.asset(
+                                  'assets/images/Français.png',
+                                  width: 24,
+                                  errorBuilder: (context, error, stackTrace) =>
+                                      const Icon(Icons.flag, size: 20),
+                                ),
                                 const SizedBox(width: 12),
                                 const Text("Français"),
                               ],
@@ -90,8 +104,12 @@ class OnboardingProView extends StatelessWidget {
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Image.asset('assets/images/English.png', width: 24, 
-                                  errorBuilder: (context, error, stackTrace) => const Icon(Icons.flag, size: 20)),
+                                Image.asset(
+                                  'assets/images/English.png',
+                                  width: 24,
+                                  errorBuilder: (context, error, stackTrace) =>
+                                      const Icon(Icons.flag, size: 20),
+                                ),
                                 const SizedBox(width: 12),
                                 const Text("English"),
                               ],
@@ -101,7 +119,7 @@ class OnboardingProView extends StatelessWidget {
                       ),
                     ],
                   ),
-                  
+
                   const Spacer(),
 
                   // Titre Principal Traduit
@@ -141,18 +159,25 @@ class OnboardingProView extends StatelessWidget {
                       onPressed: () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (context) => const RegistrationView()),
+                          MaterialPageRoute(
+                            builder: (context) => const RegistrationView(),
+                          ),
                         );
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: brandPink,
                         foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
                         elevation: 0,
                       ),
                       child: Text(
                         isFr ? "Devenir Partenaire" : "Become a Partner",
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ),
@@ -163,14 +188,22 @@ class OnboardingProView extends StatelessWidget {
                   Center(
                     child: TextButton(
                       onPressed: () {
-                        // Action de connexion à venir
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const LoginView(),
+                          ),
+                        );
                       },
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
                             isFr ? "Déjà partenaire ? " : "Already a partner? ",
-                            style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 15),
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.8),
+                              fontSize: 15,
+                            ),
                           ),
                           Text(
                             isFr ? "Se connecter" : "Log in",
@@ -182,7 +215,11 @@ class OnboardingProView extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(width: 5),
-                          const Icon(Icons.arrow_forward, color: Colors.white, size: 18),
+                          const Icon(
+                            Icons.arrow_forward,
+                            color: Colors.white,
+                            size: 18,
+                          ),
                         ],
                       ),
                     ),

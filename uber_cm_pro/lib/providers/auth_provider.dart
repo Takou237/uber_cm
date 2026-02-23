@@ -83,6 +83,29 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  Future<bool> loginChauffeur(String email) async {
+    _isLoading = true;
+    notifyListeners();
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/api/auth/driver/login'),
+        headers: {"Content-Type": "application/json"},
+        body: json.encode({"email": email}),
+      );
+      _isLoading = false;
+      if (response.statusCode == 200) {
+        _userEmail = email;
+        notifyListeners();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
   // 2. VÉRIFICATION OTP
   Future<bool> verifyDriverOTP(String code) async {
     _isLoading = true;
