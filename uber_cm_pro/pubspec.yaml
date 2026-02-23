@@ -18,6 +18,8 @@ dependencies:
   firebase_database: ^10.5.7
   provider: ^6.1.5+1
   http: ^1.6.0
+  smooth_page_indicator: ^2.0.1
+  shared_preferences: ^2.5.4
 
 dev_dependencies:
   flutter_test:
@@ -32,3 +34,5 @@ flutter:
     - assets/images/cm_flag.png
     - assets/images/Français.png
     - assets/images/English.png
+    - assets/images/driver_owner.png
+    - assets/images/driver_need.png

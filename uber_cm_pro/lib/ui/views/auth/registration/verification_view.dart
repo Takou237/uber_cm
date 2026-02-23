@@ -4,6 +4,7 @@ import 'dart:developer';
 import 'dart:async';
 import '../../../../providers/auth_provider.dart';
 import '../../../../providers/language_provider.dart';
+import '../../Enregistrement/vehicle_preference_view.dart';
 
 class VerificationView extends StatefulWidget {
   const VerificationView({super.key});
@@ -17,25 +18,25 @@ class _VerificationViewState extends State<VerificationView> {
   bool _showError = false;
   Timer? _errorTimer;
 
+  // Dans _VerificationViewState, modifie la fonction _handleVerify :
+
   Future<void> _handleVerify() async {
     String fullCode = _controllers.map((c) => c.text).join();
     if (fullCode.length < 6) return;
 
     final authProv = Provider.of<AuthProvider>(context, listen: false);
-
-    // APPEL RÉEL AU BACKEND RAILWAY
     bool isValid = await authProv.verifyDriverOTP(fullCode);
 
     if (isValid) {
-      setState(() => _showError = false);
-      log("Vérification réussie !");
-      // TODO: Navigator.push(context, MaterialPageRoute(builder: (context) => const DocumentUploadView()));
+      if (!mounted) return;
+      // ✅ Redirection automatique vers les préférences
+      Navigator.pushAndRemoveUntil(
+        context, 
+        MaterialPageRoute(builder: (context) => const VehiclePreferenceView()),
+        (route) => false, // Empêche le retour en arrière vers l'OTP
+      );
     } else {
       setState(() => _showError = true);
-      _errorTimer?.cancel();
-      _errorTimer = Timer(const Duration(seconds: 5), () {
-        if (mounted) setState(() => _showError = false);
-      });
     }
   }
 
