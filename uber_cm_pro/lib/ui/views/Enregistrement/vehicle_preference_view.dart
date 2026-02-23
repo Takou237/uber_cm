@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:smooth_page_indicator/smooth_page_indicator.dart';
 import '../../../../providers/auth_provider.dart';
+import 'add_vehicle_view.dart'; // ✅ Import de la page suivante
 
 class VehiclePreferenceView extends StatefulWidget {
   const VehiclePreferenceView({super.key});
@@ -63,8 +64,7 @@ class _VehiclePreferenceViewState extends State<VehiclePreferenceView> {
             child: PageView(
               controller: _pageController,
               children: [
-
-                // CARTE 1
+                // CARTE 1 : J'AI UN VÉHICULE (Redirige vers AddVehicleView)
                 _buildPreferenceCard(
                   image: 'assets/images/driver_owner.png', 
                   title: isFr ? "J'ai un véhicule" : "I have a vehicle",
@@ -73,11 +73,15 @@ class _VehiclePreferenceViewState extends State<VehiclePreferenceView> {
                     : "You own a vehicle (car, bike, taxi) you will drive.",
                   onTap: () {
                     authProv.setPreference("owner");
-                    // Navigator.push...
+                    // ✅ Navigation vers la page d'ajout de véhicule
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const AddVehicleView()),
+                    );
                   },
                 ),
 
-                // CARTE 2
+                // CARTE 2 : BESOIN D'UN VÉHICULE
                 _buildPreferenceCard(
                   image: 'assets/images/driver_need.png',
                   title: isFr ? "Besoin d'un véhicule" : "Need a vehicle",
@@ -86,13 +90,13 @@ class _VehiclePreferenceViewState extends State<VehiclePreferenceView> {
                     : "You are looking for a partner to provide a vehicle.",
                   onTap: () {
                     authProv.setPreference("renter");
+                    // TODO: Redirection vers la liste des flottes ou partenaires
                   },
                 ),
               ],
             ),
           ),
           
-          // ✅ Correction de l'erreur Padding/Center
           Padding(
             padding: const EdgeInsets.only(bottom: 40, top: 20),
             child: Center(
@@ -120,69 +124,72 @@ class _VehiclePreferenceViewState extends State<VehiclePreferenceView> {
     required String description,
     required VoidCallback onTap,
   }) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 15),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 15,
-            offset: const Offset(0, 5),
-          )
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            flex: 3,
-            child: ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-              child: Image.asset(
-                image, 
-                width: double.infinity, 
-                fit: BoxFit.cover,
-                // Si l'image n'est pas encore là, on met un placeholder
-                errorBuilder: (context, error, stackTrace) => Container(
-                  color: Colors.grey[200],
-                  child: const Icon(Icons.directions_car, size: 50, color: Colors.grey),
+    // ✅ Utilisation de GestureDetector pour rendre TOUTE la carte cliquable
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 15),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 15,
+              offset: const Offset(0, 5),
+            )
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              flex: 3,
+              child: ClipRRect(
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                child: Image.asset(
+                  image, 
+                  width: double.infinity, 
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => Container(
+                    color: Colors.grey[200],
+                    child: const Icon(Icons.directions_car, size: 50, color: Colors.grey),
+                  ),
                 ),
               ),
             ),
-          ),
-          Expanded(
-            flex: 2,
-            child: Padding(
-              padding: const EdgeInsets.all(20.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title, 
-                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    description, 
-                    style: TextStyle(color: Colors.grey[600], fontSize: 15, height: 1.4),
-                  ),
-                  const Spacer(),
-                  Align(
-                    alignment: Alignment.bottomRight,
-                    child: FloatingActionButton.small(
-                      heroTag: title, // Unique tag pour éviter les erreurs Hero
-                      onPressed: onTap,
-                      backgroundColor: Colors.black,
-                      child: const Icon(Icons.arrow_forward, color: Colors.white),
+            Expanded(
+              flex: 2,
+              child: Padding(
+                padding: const EdgeInsets.all(20.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title, 
+                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 10),
+                    Text(
+                      description, 
+                      style: TextStyle(color: Colors.grey[600], fontSize: 15, height: 1.4),
+                    ),
+                    const Spacer(),
+                    Align(
+                      alignment: Alignment.bottomRight,
+                      child: FloatingActionButton.small(
+                        heroTag: title, 
+                        onPressed: onTap, // Toujours fonctionnel individuellement
+                        backgroundColor: Colors.black,
+                        child: const Icon(Icons.arrow_forward, color: Colors.white),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          )
-        ],
+            )
+          ],
+        ),
       ),
     );
   }
