@@ -1,20 +1,23 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'ui/views/driver_home_view.dart';
+import 'package:provider/provider.dart';
+import 'providers/auth_provider.dart';
+import 'ui/views/auth/onboarding_pro_view.dart';
+import 'providers/language_provider.dart';
 
-void main() async {
-  // 1. On s'assure que les liens avec le code natif sont prêts
-  WidgetsFlutterBinding.ensureInitialized();
-
-  // 2. On initialise Firebase
-  await Firebase.initializeApp();
-
-  // 3. On lance l'application
-  runApp(const UberCMPro());
+void main() {
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => LanguageProvider()),
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
+      ],
+      child: const MyApp(),
+    ),
+  );
 }
 
-class UberCMPro extends StatelessWidget {
-  const UberCMPro({super.key});
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -22,11 +25,10 @@ class UberCMPro extends StatelessWidget {
       title: 'Uber CM Pro',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF111727)),
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFE91E63)),
         useMaterial3: true,
       ),
-      home:
-          const DriverHomeView(), // C'est ici qu'on appellera notre vue principale
+      home: const OnboardingProView(),
     );
   }
 }

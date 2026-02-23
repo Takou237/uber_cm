@@ -16,6 +16,7 @@ dependencies:
   # Pour la communication en temps réel (Firebase est idéal ici)
   firebase_core: ^2.24.2
   firebase_database: ^10.5.7
+  provider: ^6.1.5+1
 
 dev_dependencies:
   flutter_test:
@@ -27,3 +28,6 @@ flutter:
 
   assets:
     - assets/images/
+    - assets/images/cm_flag.png
+    - assets/images/Français.png
+    - assets/images/English.png
