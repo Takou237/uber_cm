@@ -1,8 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:provider/provider.dart';
-import '../../../../providers/auth_provider.dart';
-import '../../../core/services/location_service.dart';
 
 class HomeView extends StatefulWidget {
   const HomeView({super.key});
@@ -12,141 +9,66 @@ class HomeView extends StatefulWidget {
 }
 
 class _HomeViewState extends State<HomeView> {
-  bool _isOnline = false;
-  final LocationService _locationService = LocationService();
-  
-  // Dans un vrai projet, on récupère l'ID depuis le provider
-  // final String _driverId = authProv.userId; 
+  GoogleMapController? _mapController;
 
-  void _toggleStatus(String driverId) {
-    setState(() {
-      _isOnline = !_isOnline;
-    });
-
-    if (_isOnline) {
-      _locationService.startRealtimeTracking(driverId);
-    } else {
-      _locationService.goOffline(driverId);
-    }
+  void _onMapCreated(GoogleMapController controller) {
+    _mapController = controller;
   }
 
   @override
   Widget build(BuildContext context) {
-    final authProv = Provider.of<AuthProvider>(context);
-    final isFr = authProv.language == "fr";
-
     return Scaffold(
+      backgroundColor: Colors.white,
       body: Stack(
         children: [
-          // 1. LA CARTE (Prend tout l'écran)
-          const GoogleMap(
-            initialCameraPosition: CameraPosition(
-              target: LatLng(3.8480, 11.5021), // Yaoundé
-              zoom: 14,
+          // 1. LA MAP (Standard)
+          GoogleMap(
+            initialCameraPosition: const CameraPosition(
+              target: LatLng(3.8480, 11.5021),
+              zoom: 16,
             ),
-            myLocationEnabled: true,
+            onMapCreated: _onMapCreated,
+            myLocationEnabled: false,
             zoomControlsEnabled: false,
             myLocationButtonEnabled: false,
+            mapType: MapType.normal,
           ),
 
-          // 2. BARRE SUPÉRIEURE : Revenus et Profil
+          // 2. BOUTON MENU (Top Left)
           SafeArea(
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  // Bouton Menu/Profil
-                  _headerCircleButton(Icons.menu, () {}),
-                  
-                  // Affichage des revenus (Le badge noir au milieu)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: Colors.black,
-                      borderRadius: BorderRadius.circular(30),
-                      boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 5)],
-                    ),
-                    child: const Row(
-                      children: [
-                        Text(
-                          "0.00",
-                          style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                        ),
-                        SizedBox(width: 5),
-                        Text("FCFA", style: TextStyle(color: Colors.white70, fontSize: 12)),
-                      ],
-                    ),
-                  ),
-
-                  // Bouton Recherche ou Statut
-                  _headerCircleButton(Icons.insights, () {}),
-                ],
-              ),
+              padding: const EdgeInsets.only(left: 20, top: 10),
+              child: _circleIconButton(Icons.menu),
             ),
           ),
 
-          // 3. PANNEAU DE CONTRÔLE INFÉRIEUR (Bouton GO et Statut)
+          // 3. BOUTONS DROITE (My Location & Search)
+          Positioned(
+            right: 20,
+            bottom: 320,
+            child: Column(
+              children: [
+                _circleIconButton(Icons.my_location),
+                const SizedBox(height: 15),
+                _circleIconButton(Icons.search),
+              ],
+            ),
+          ),
+
+          // 4. PANNEAU INFÉRIEUR AVEC L'ENCOCHE ET LA LISTE
           Align(
             alignment: Alignment.bottomCenter,
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(25),
-                  topRight: Radius.circular(25),
+            child: Stack(
+              clipBehavior: Clip.none,
+              alignment: Alignment.topCenter,
+              children: [
+                _buildWhitePanel(),
+                // LE BOUTON "GO ONLINE" (Placé sur la courbe)
+                Positioned(
+                  top: -28,
+                  child: _goOnlineButton(),
                 ),
-                boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10, spreadRadius: 2)],
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Petite barre de drag
-                  Container(width: 40, height: 5, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(10))),
-                  const SizedBox(height: 15),
-                  
-                  Text(
-                    _isOnline 
-                      ? (isFr ? "VOUS ÊTES EN LIGNE" : "YOU ARE ONLINE") 
-                      : (isFr ? "VOUS ÊTES HORS LIGNE" : "YOU ARE OFFLINE"),
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold, 
-                      color: _isOnline ? Colors.green[700] : Colors.grey[600],
-                      letterSpacing: 1.2
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  
-                  // Le gros bouton circulaire GO / STOP
-                  GestureDetector(
-                    onTap: () => _toggleStatus("driver_001"), // Remplacer par authProv.id
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 300),
-                      height: 80,
-                      width: 80,
-                      decoration: BoxDecoration(
-                        color: _isOnline ? Colors.red : const Color(0xFF2196F3),
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: (_isOnline ? Colors.red : Colors.blue).withValues(alpha: 0.4),
-                            blurRadius: 15,
-                            spreadRadius: 2
-                          )
-                        ],
-                      ),
-                      child: Center(
-                        child: Text(
-                          _isOnline ? "STOP" : "GO",
-                          style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+              ],
             ),
           ),
         ],
@@ -154,19 +76,173 @@ class _HomeViewState extends State<HomeView> {
     );
   }
 
-  // Widget utilitaire pour les boutons du haut
-  Widget _headerCircleButton(IconData icon, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
+  Widget _buildWhitePanel() {
+    return ClipPath(
+      clipper: UberClipper(),
       child: Container(
-        padding: const EdgeInsets.all(10),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          shape: BoxShape.circle,
-          boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 5)],
+        width: double.infinity,
+        color: Colors.white,
+        padding: const EdgeInsets.only(top: 50),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Onglets Drive / Earnings
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 40),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _navTab(Icons.attach_money, "Drive", true),
+                  _navTab(Icons.monetization_on, "Earnings", false),
+                ],
+              ),
+            ),
+            const SizedBox(height: 15),
+            const Divider(thickness: 1),
+            
+            // Section Weekly Challenges & Destinations
+            _buildChallengesAndDestinations(),
+          ],
         ),
-        child: Icon(icon, color: Colors.black87),
       ),
     );
   }
+
+  Widget _buildChallengesAndDestinations() {
+    return Container(
+      padding: const EdgeInsets.all(25),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            "Weekly Challenges",
+            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF0D1B3E)),
+          ),
+          const SizedBox(height: 15),
+          // Search Bar
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 15),
+            height: 50,
+            decoration: BoxDecoration(
+              color: const Color(0xFFF3F5F7),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.search, color: Colors.black54),
+                SizedBox(width: 10),
+                Text("Search your destination", style: TextStyle(color: Colors.black38, fontSize: 16)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 25),
+          // Liste Home / Work
+          _destinationItem(Icons.home, "Home", "4127 Mendong Street, Phenix City, AL", Colors.redAccent),
+          const Padding(padding: EdgeInsets.only(left: 60), child: Divider()),
+          _destinationItem(Icons.business_center, "Work", "86706 Kuhic Trafficway, Upton Falls, SL", Colors.purple),
+          const SizedBox(height: 10),
+        ],
+      ),
+    );
+  }
+
+  Widget _destinationItem(IconData icon, String title, String subtitle, Color color) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            child: Icon(icon, color: Colors.white, size: 20),
+          ),
+          const SizedBox(width: 15),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
+                Text(subtitle, style: const TextStyle(color: Colors.grey, fontSize: 14), overflow: TextOverflow.ellipsis),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _goOnlineButton() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 45, vertical: 15),
+      decoration: BoxDecoration(
+        color: const Color(0xFF27D05D), // Vert brillant du design
+        borderRadius: BorderRadius.circular(35),
+        boxShadow: [
+          BoxShadow(color: Colors.green.withValues(alpha: 0.3), blurRadius: 15, offset: const Offset(0, 5))
+        ],
+      ),
+      child: const Text(
+        "Go Online",
+        style: TextStyle(color: Colors.white, fontSize: 19, fontWeight: FontWeight.bold),
+      ),
+    );
+  }
+
+  Widget _navTab(IconData icon, String label, bool active) {
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: active ? const Color(0xFF0D1B3E) : Colors.grey[300],
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, color: Colors.white, size: 20),
+        ),
+        const SizedBox(height: 5),
+        Text(label, style: TextStyle(color: active ? Colors.black : Colors.grey, fontWeight: FontWeight.bold)),
+      ],
+    );
+  }
+
+  Widget _circleIconButton(IconData icon) {
+    return Container(
+      height: 50, width: 50,
+      decoration: const BoxDecoration(
+        color: Colors.white, shape: BoxShape.circle,
+        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)],
+      ),
+      child: Icon(icon, color: Colors.black87),
+    );
+  }
+}
+
+// ✅ LE CLIPPER POUR LA COURBE PARFAITE
+class UberClipper extends CustomClipper<Path> {
+  @override
+  Path getClip(Size size) {
+    Path path = Path();
+    double h = size.height;
+    double w = size.width;
+    double curveHeight = 40.0;
+
+    path.moveTo(0, curveHeight);
+    path.quadraticBezierTo(0, 0, 30, 0); // Arrondi gauche
+    
+    // La courbe centrale pour le bouton
+    path.lineTo(w / 2 - 85, 0);
+    path.quadraticBezierTo(w / 2 - 70, 0, w / 2 - 60, 25);
+    path.arcToPoint(Offset(w / 2 + 60, 25), radius: const Radius.circular(60), clockwise: false);
+    path.quadraticBezierTo(w / 2 + 70, 0, w / 2 + 85, 0);
+
+    path.lineTo(w - 30, 0);
+    path.quadraticBezierTo(w, 0, w, curveHeight); // Arrondi droit
+    path.lineTo(w, h);
+    path.lineTo(0, h);
+    path.close();
+    return path;
+  }
+
+  @override
+  bool shouldReclip(CustomClipper<Path> oldClipper) => false;
 }
