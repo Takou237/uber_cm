@@ -13,19 +13,14 @@ dependencies:
   google_maps_flutter: ^2.5.3
   geolocator: ^10.1.0
   geocoding: ^2.1.1
-  # Pour la communication en temps réel (Firebase est idéal ici)
   firebase_core: ^2.24.2
   firebase_database: ^10.5.7
-<<<<<<< Updated upstream
-  provider: ^6.1.5+1
-  http: ^1.6.0
-  smooth_page_indicator: ^2.0.1
-  shared_preferences: ^2.5.4
-  image_picker: ^1.2.1
-  pinput: ^6.0.2
-=======
+  provider: ^6.1.1
   http: ^1.1.0
->>>>>>> Stashed changes
+  smooth_page_indicator: ^1.1.0
+  shared_preferences: ^2.2.2
+  image_picker: ^1.0.7
+  pinput: ^3.0.1
 
 dev_dependencies:
   flutter_test:
