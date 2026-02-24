@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:io';
-// Suppression de l'import inutilisé dart:developer
 import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthProvider extends ChangeNotifier {
   String _userEmail = "";
   bool _isLoading = false;
   bool _isLoggedIn = false;
+  bool _isProfileComplete = false; // ✅ Ajouté pour la redirection intelligente
   String _language = "fr";
   String _selectedPreference = "";
 
@@ -21,19 +21,21 @@ class AuthProvider extends ChangeNotifier {
   Future<void> _init() async {
     final prefs = await SharedPreferences.getInstance();
     _isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
+    _isProfileComplete = prefs.getBool('isProfileComplete') ?? false;
     _userEmail = prefs.getString('userEmail') ?? "";
     _language = prefs.getString('language') ?? "fr";
     notifyListeners();
   }
 
-  // Getters
+  // --- Getters ---
   String get userEmail => _userEmail;
   bool get isLoading => _isLoading;
   bool get isLoggedIn => _isLoggedIn;
+  bool get isProfileComplete => _isProfileComplete;
   String get language => _language;
   String get selectedPreference => _selectedPreference;
 
-  // Setters
+  // --- Setters ---
   void setLanguage(String lang) {
     _language = lang;
     SharedPreferences.getInstance().then((p) => p.setString('language', lang));
@@ -61,7 +63,7 @@ class AuthProvider extends ChangeNotifier {
         headers: {"Content-Type": "application/json"},
         body: json.encode({
           "name": name,
-          "email": email,
+          "email": email.trim().toLowerCase(), // ✅ Sécurité
           "phone": phone,
           "city": city,
           "referral_code": referralCode,
@@ -69,9 +71,9 @@ class AuthProvider extends ChangeNotifier {
       );
       _isLoading = false;
       if (response.statusCode == 201) {
-        _userEmail = email;
+        _userEmail = email.trim().toLowerCase();
         final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('userEmail', email);
+        await prefs.setString('userEmail', _userEmail);
         notifyListeners();
         return true;
       }
@@ -83,6 +85,7 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  // 2. CONNEXION (LOGIN)
   Future<bool> loginChauffeur(String email) async {
     _isLoading = true;
     notifyListeners();
@@ -90,11 +93,11 @@ class AuthProvider extends ChangeNotifier {
       final response = await http.post(
         Uri.parse('$baseUrl/api/auth/driver/login'),
         headers: {"Content-Type": "application/json"},
-        body: json.encode({"email": email}),
+        body: json.encode({"email": email.trim().toLowerCase()}),
       );
       _isLoading = false;
       if (response.statusCode == 200) {
-        _userEmail = email;
+        _userEmail = email.trim().toLowerCase();
         notifyListeners();
         return true;
       }
@@ -106,7 +109,7 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  // 2. VÉRIFICATION OTP
+  // 3. VÉRIFICATION OTP
   Future<bool> verifyDriverOTP(String code) async {
     _isLoading = true;
     notifyListeners();
@@ -116,11 +119,20 @@ class AuthProvider extends ChangeNotifier {
         headers: {"Content-Type": "application/json"},
         body: json.encode({"email": _userEmail, "code": code}),
       );
+      
       _isLoading = false;
       if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        
         _isLoggedIn = true;
+        // ✅ On récupère si le profil est complet depuis le backend
+        _isProfileComplete = data['isProfileComplete'] ?? false;
+
         final prefs = await SharedPreferences.getInstance();
         await prefs.setBool('isLoggedIn', true);
+        await prefs.setBool('isProfileComplete', _isProfileComplete);
+        await prefs.setString('userEmail', _userEmail);
+        
         notifyListeners();
         return true;
       }
@@ -132,7 +144,7 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  // 3. ENVOI DOCUMENTS (MULTIPART)
+  // 4. ENVOI DOCUMENTS (MULTIPART)
   Future<bool> completeVehicleRegistration({
     required String brand,
     required String model,
@@ -144,15 +156,12 @@ class AuthProvider extends ChangeNotifier {
     _isLoading = true;
     notifyListeners();
 
-    debugPrint("🚀 DÉBUT DE L'UPLOAD...");
-
     try {
       var request = http.MultipartRequest(
         'POST',
         Uri.parse('$baseUrl/api/auth/driver/complete-profile'),
       );
 
-      // Champs texte
       request.fields['email'] = _userEmail;
       request.fields['brand'] = brand;
       request.fields['model'] = model;
@@ -161,35 +170,28 @@ class AuthProvider extends ChangeNotifier {
       request.fields['plate'] = plate;
       request.fields['preference'] = _selectedPreference;
 
-      // Ajout des fichiers
       for (var entry in files.entries) {
         if (entry.value != null) {
-          debugPrint("Ajout du fichier: ${entry.key} -> ${entry.value!.path}");
           request.files.add(
             await http.MultipartFile.fromPath(entry.key, entry.value!.path),
           );
         }
       }
 
-      debugPrint("📡 Envoi de la requête au serveur...");
-      var streamedResponse = await request.send().timeout(
-        const Duration(seconds: 45), // Augmenté à 45s car les images sont lourdes
-      );
+      var streamedResponse = await request.send().timeout(const Duration(seconds: 60));
       var response = await http.Response.fromStream(streamedResponse);
 
-      debugPrint("📥 RÉPONSE REÇUE: ${response.statusCode}");
-      debugPrint("DÉTAILS DU SERVEUR: ${response.body}");
-
       _isLoading = false;
-      notifyListeners();
-
       if (response.statusCode == 200 || response.statusCode == 201) {
+        _isProfileComplete = true;
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('isProfileComplete', true);
+        notifyListeners();
         return true;
-      } else {
-        return false;
       }
+      notifyListeners();
+      return false;
     } catch (e) {
-      debugPrint("❌ EXCEPTION LORS DE L'ENVOI: $e");
       _isLoading = false;
       notifyListeners();
       return false;
@@ -200,6 +202,7 @@ class AuthProvider extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     await prefs.clear();
     _isLoggedIn = false;
+    _isProfileComplete = false;
     _userEmail = "";
     notifyListeners();
   }

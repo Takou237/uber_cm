@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../../providers/auth_provider.dart';
+import '../home/home_view.dart';
 
 class RegistrationSuccessView extends StatelessWidget {
   const RegistrationSuccessView({super.key});
@@ -87,8 +88,10 @@ class RegistrationSuccessView extends StatelessWidget {
                 height: 56,
                 child: ElevatedButton(
                   onPressed: () {
-                    // Rediriger vers l'accueil ou fermer le flux d'inscription
-                    Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
+                    Navigator.of(context).pushAndRemoveUntil(
+                      MaterialPageRoute(builder: (context) => const HomeView()),
+                      (route) => false,
+  );
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.black,

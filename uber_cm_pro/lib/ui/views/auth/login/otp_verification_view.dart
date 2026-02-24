@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:pinput/pinput.dart';
 import '../../../../providers/auth_provider.dart';
 import '../../Enregistrement/vehicle_preference_view.dart';
+import '../../home/home_view.dart';
 
 class OtpVerificationView extends StatefulWidget {
   final bool isLogin;
@@ -59,26 +60,25 @@ class _OtpVerificationViewState extends State<OtpVerificationView> {
                   ),
                 ),
                 onCompleted: (pin) async {
-                  // Capture du navigator et messenger avant le await
+                  // ✅ 1. Capture du navigator et messenger AVANT le await
                   final navigator = Navigator.of(context);
                   final messenger = ScaffoldMessenger.of(context);
 
                   bool success = await authProv.verifyDriverOTP(pin);
                   
+                  // ✅ 2. Vérification du mounted
                   if (!mounted) return;
 
                   if (success) {
-                    if (widget.isLogin) {
-                      // ✅ REDIRECTION INTELLIGENTE
-                      // Si c'est un login, on vide la pile et on va aux préférences (ou accueil)
+                    if (authProv.isProfileComplete) {
                       navigator.pushAndRemoveUntil(
-                        MaterialPageRoute(builder: (context) => const VehiclePreferenceView()),
+                        MaterialPageRoute(builder: (context) => const HomeView()),
                         (route) => false,
                       );
                     } else {
-                      // Si c'est une inscription, on continue l'étape
-                      navigator.push(
+                      navigator.pushAndRemoveUntil(
                         MaterialPageRoute(builder: (context) => const VehiclePreferenceView()),
+                        (route) => false,
                       );
                     }
                   } else {
@@ -100,7 +100,9 @@ class _OtpVerificationViewState extends State<OtpVerificationView> {
                   backgroundColor: Colors.black,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
-                onPressed: authProv.isLoading ? null : () {},
+                onPressed: authProv.isLoading ? null : () {
+                  // Optionnel: Relancer manuellement la vérification avec le bouton
+                },
                 child: authProv.isLoading 
                   ? const CircularProgressIndicator(color: Colors.white)
                   : Text(isFr ? "Vérifier" : "Verify", style: const TextStyle(color: Colors.white, fontSize: 16)),
