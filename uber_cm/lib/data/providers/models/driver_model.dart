@@ -19,7 +19,7 @@ class DriverModel {
   factory DriverModel.fromJson(Map<String, dynamic> json) {
     return DriverModel(
       id: json['id'].toString(),
-      name: json['name'] ?? "Chauffeur",
+      name: json['nom'] ?? "Chauffeur",
       // On combine marque et modèle pour créer le champ 'vehicle'
       vehicle: "${json['marque'] ?? ''} ${json['modele'] ?? ''}".trim(),
       plate: json['immatriculation'] ?? "---",
