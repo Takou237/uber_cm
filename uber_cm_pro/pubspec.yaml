@@ -18,7 +18,7 @@ dependencies:
   provider: ^6.1.1
   http: ^1.1.0
   smooth_page_indicator: ^1.1.0
-  shared_preferences: ^2.2.2
+  shared_preferences: ^2.5.4
   image_picker: ^1.0.7
   pinput: ^3.0.1
 

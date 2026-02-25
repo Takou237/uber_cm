@@ -70,7 +70,7 @@ class AuthProvider extends ChangeNotifier {
         }),
       );
       _isLoading = false;
-      if (response.statusCode == 201) {
+      if (response.statusCode == 201 || response.statusCode == 200) {
         _userEmail = email.trim().toLowerCase();
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('userEmail', _userEmail);
@@ -79,13 +79,14 @@ class AuthProvider extends ChangeNotifier {
       }
       return false;
     } catch (e) {
+      debugPrint("Erreur Register: $e");
       _isLoading = false;
       notifyListeners();
       return false;
     }
   }
 
-  // 2. CONNEXION (LOGIN)
+  // 2. CONNEXION (LOGIN) - Envoi de l'OTP
   Future<bool> loginChauffeur(String email) async {
     _isLoading = true;
     notifyListeners();
@@ -103,14 +104,15 @@ class AuthProvider extends ChangeNotifier {
       }
       return false;
     } catch (e) {
+      debugPrint("Erreur Login: $e");
       _isLoading = false;
       notifyListeners();
       return false;
     }
   }
 
-  // 3. VÉRIFICATION OTP
-  Future<bool> verifyDriverOTP(String code) async {
+  // 3. VÉRIFICATION OTP (Modifié pour retourner les données du chauffeur)
+  Future<Map<String, dynamic>?> verifyDriverOTP(String code) async {
     _isLoading = true;
     notifyListeners();
     try {
@@ -119,11 +121,11 @@ class AuthProvider extends ChangeNotifier {
         headers: {"Content-Type": "application/json"},
         body: json.encode({"email": _userEmail, "code": code}),
       );
-      
+
       _isLoading = false;
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        
+
         _isLoggedIn = true;
         // ✅ On récupère si le profil est complet depuis le backend
         _isProfileComplete = data['isProfileComplete'] ?? false;
@@ -132,20 +134,21 @@ class AuthProvider extends ChangeNotifier {
         await prefs.setBool('isLoggedIn', true);
         await prefs.setBool('isProfileComplete', _isProfileComplete);
         await prefs.setString('userEmail', _userEmail);
-        
+
         notifyListeners();
-        return true;
+        return data; // ✅ On retourne toutes les infos (id, name, etc.) pour le UserProvider
       }
-      return false;
+      return null; // Échec
     } catch (e) {
+      debugPrint("Erreur Verify OTP: $e");
       _isLoading = false;
       notifyListeners();
-      return false;
+      return null;
     }
   }
 
-  // 4. ENVOI DOCUMENTS (MULTIPART)
-  Future<bool> completeVehicleRegistration({
+  // 4. ENVOI DOCUMENTS (Modifié pour retourner les données mises à jour)
+  Future<Map<String, dynamic>?> completeVehicleRegistration({
     required String brand,
     required String model,
     required String year,
@@ -178,26 +181,34 @@ class AuthProvider extends ChangeNotifier {
         }
       }
 
-      var streamedResponse = await request.send().timeout(const Duration(seconds: 60));
+      var streamedResponse = await request.send().timeout(
+        const Duration(seconds: 60),
+      );
       var response = await http.Response.fromStream(streamedResponse);
 
       _isLoading = false;
       if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = json.decode(
+          response.body,
+        ); // ✅ On récupère le retour de Railway
+
         _isProfileComplete = true;
         final prefs = await SharedPreferences.getInstance();
         await prefs.setBool('isProfileComplete', true);
         notifyListeners();
-        return true;
+        return data; // ✅ On retourne les infos pour mettre à jour la plaque dans le UserProvider
       }
       notifyListeners();
-      return false;
+      return null;
     } catch (e) {
+      debugPrint("Erreur Complete Registration: $e");
       _isLoading = false;
       notifyListeners();
-      return false;
+      return null;
     }
   }
 
+  // 5. DÉCONNEXION
   Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.clear();

@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import '../../../../providers/auth_provider.dart';
+// ✅ AJOUT : Import du UserProvider (Vérifie que le chemin est correct selon tes dossiers)
+import '../../../../providers/user_provider.dart';
 import 'registration_success_view.dart';
 
 class DocumentSelectionView extends StatefulWidget {
@@ -17,7 +19,7 @@ class DocumentSelectionView extends StatefulWidget {
 
 class _DocumentSelectionViewState extends State<DocumentSelectionView> {
   final ImagePicker _picker = ImagePicker();
-  
+
   final Map<String, File?> _files = {
     "license": null,
     "insurance": null,
@@ -26,7 +28,10 @@ class _DocumentSelectionViewState extends State<DocumentSelectionView> {
   };
 
   Future<void> _pickImage(String key, ImageSource source) async {
-    final XFile? pickedFile = await _picker.pickImage(source: source, imageQuality: 70);
+    final XFile? pickedFile = await _picker.pickImage(
+      source: source,
+      imageQuality: 70,
+    );
     if (pickedFile != null) {
       setState(() {
         _files[key] = File(pickedFile.path);
@@ -34,9 +39,10 @@ class _DocumentSelectionViewState extends State<DocumentSelectionView> {
     }
   }
 
-  // Fonction pour envoyer les données au backend
+  // ✅ CORRECTION : La fonction pour envoyer les données au backend
   Future<void> _handleUpload(AuthProvider authProv, bool isFr) async {
-    final success = await authProv.completeVehicleRegistration(
+    // 1. On récupère les données renvoyées par Railway (au lieu de success)
+    final driverData = await authProv.completeVehicleRegistration(
       brand: widget.vehicleData['brand']!,
       model: widget.vehicleData['model']!,
       year: widget.vehicleData['year']!,
@@ -45,21 +51,44 @@ class _DocumentSelectionViewState extends State<DocumentSelectionView> {
       files: _files,
     );
 
-    if (success) {
-      // ✅ Aller vers l'étape 4 ou l'accueil
+    // 2. Si on a bien reçu une réponse (driverData n'est pas nul)
+    if (driverData != null) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(isFr ? "Inscription réussie !" : "Registration successful!")),
+        // 3. ✅ On met à jour le UserProvider avec les nouvelles infos du véhicule !
+        final userProv = Provider.of<UserProvider>(context, listen: false);
+        await userProv.saveUserData(
+          id:
+              driverData['id']?.toString() ??
+              userProv.id, // On garde l'ID s'il est déjà là
+          name: driverData['name'] ?? userProv.name,
+          phone: driverData['phone'] ?? userProv.phone,
+          plate:
+              widget.vehicleData['plate']!, // On sauvegarde la plaque saisie !
         );
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              isFr ? "Inscription réussie !" : "Registration successful!",
+            ),
+          ),
+        );
+
+        // 4. On va vers la page de succès
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const RegistrationSuccessView()),
+          MaterialPageRoute(
+            builder: (context) => const RegistrationSuccessView(),
+          ),
         );
       }
     } else {
+      // 5. En cas d'échec (driverData est null)
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(isFr ? "Erreur lors de l'envoi" : "Upload failed")),
+          SnackBar(
+            content: Text(isFr ? "Erreur lors de l'envoi" : "Upload failed"),
+          ),
         );
       }
     }
@@ -68,14 +97,18 @@ class _DocumentSelectionViewState extends State<DocumentSelectionView> {
   void _showImageSourceSheet(String key, bool isFr) {
     showModalBottomSheet(
       context: context,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (context) => Container(
         padding: const EdgeInsets.all(20),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(isFr ? "Sélectionner la source" : "Select Source", 
-                 style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            Text(
+              isFr ? "Sélectionner la source" : "Select Source",
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 20),
             ListTile(
               leading: const Icon(Icons.camera_alt, color: Colors.black),
@@ -115,49 +148,66 @@ class _DocumentSelectionViewState extends State<DocumentSelectionView> {
           icon: const Icon(Icons.arrow_back, color: Colors.black),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Text(isFr ? "Documents" : "Documents", 
-             style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+        title: Text(
+          isFr ? "Documents" : "Documents",
+          style: const TextStyle(
+            color: Colors.black,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(isFr ? "Étape 3 sur 4" : "Step 3 of 4", style: const TextStyle(color: Colors.grey)),
+            Text(
+              isFr ? "Étape 3 sur 4" : "Step 3 of 4",
+              style: const TextStyle(color: Colors.grey),
+            ),
             const SizedBox(height: 10),
-            Text(isFr ? "Vérification du profil" : "Profile Verification",
-                 style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
+            Text(
+              isFr ? "Vérification du profil" : "Profile Verification",
+              style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 30),
 
             _buildDocumentTile(
               keyName: "license",
               title: isFr ? "Permis de conduire" : "Driver's License",
-              subtitle: isFr ? "Photo recto nette du permis" : "Clear front photo of license",
+              subtitle: isFr
+                  ? "Photo recto nette du permis"
+                  : "Clear front photo of license",
               file: _files["license"],
               isFr: isFr,
             ),
             _buildDocumentTile(
               keyName: "insurance",
               title: isFr ? "Assurance" : "Insurance",
-              subtitle: isFr ? "Document d'assurance valide" : "Valid insurance document",
+              subtitle: isFr
+                  ? "Document d'assurance valide"
+                  : "Valid insurance document",
               file: _files["insurance"],
               isFr: isFr,
             ),
             _buildDocumentTile(
               keyName: "vehicle_photo",
               title: isFr ? "Photo du véhicule" : "Vehicle Photo",
-              subtitle: isFr ? "Vue d'ensemble avec plaque" : "Full view with plate",
+              subtitle: isFr
+                  ? "Vue d'ensemble avec plaque"
+                  : "Full view with plate",
               file: _files["vehicle_photo"],
               isFr: isFr,
             ),
             _buildDocumentTile(
               keyName: "id_card",
               title: isFr ? "Une photo de vous" : "A photo of you",
-              subtitle: isFr ? "Une photo de phase et pas de profile" : "A photo of the phase, not a profile.",
+              subtitle: isFr
+                  ? "Une photo de face et pas de profil"
+                  : "A front-facing photo, not a profile.",
               file: _files["id_card"],
               isFr: isFr,
             ),
-            
 
             const SizedBox(height: 40),
 
@@ -165,24 +215,28 @@ class _DocumentSelectionViewState extends State<DocumentSelectionView> {
               width: double.infinity,
               height: 55,
               child: ElevatedButton(
-                onPressed: (allUploaded && !authProv.isLoading) 
-                    ? () => _handleUpload(authProv, isFr) 
+                onPressed: (allUploaded && !authProv.isLoading)
+                    ? () => _handleUpload(authProv, isFr)
                     : null,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: allUploaded ? Colors.black : Colors.grey[200],
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  backgroundColor: allUploaded
+                      ? Colors.black
+                      : Colors.grey[200],
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                   elevation: 0,
                 ),
-                child: authProv.isLoading 
-                  ? const CircularProgressIndicator(color: Colors.white)
-                  : Text(
-                      isFr ? "Continuer" : "Continue",
-                      style: TextStyle(
-                        color: allUploaded ? Colors.white : Colors.grey,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16
+                child: authProv.isLoading
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : Text(
+                        isFr ? "Continuer" : "Continue",
+                        style: TextStyle(
+                          color: allUploaded ? Colors.white : Colors.grey,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
                       ),
-                    ),
               ),
             ),
           ],
@@ -207,7 +261,10 @@ class _DocumentSelectionViewState extends State<DocumentSelectionView> {
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(15),
-          border: Border.all(color: hasFile ? Colors.green : Colors.grey.shade300, width: 1.5),
+          border: Border.all(
+            color: hasFile ? Colors.green : Colors.grey.shade300,
+            width: 1.5,
+          ),
           color: hasFile ? Colors.green.withValues(alpha: 0.02) : Colors.white,
         ),
         child: Row(
@@ -218,18 +275,34 @@ class _DocumentSelectionViewState extends State<DocumentSelectionView> {
               decoration: BoxDecoration(
                 color: Colors.grey[100],
                 borderRadius: BorderRadius.circular(10),
-                image: hasFile ? DecorationImage(image: FileImage(file), fit: BoxFit.cover) : null,
+                image: hasFile
+                    ? DecorationImage(image: FileImage(file), fit: BoxFit.cover)
+                    : null,
               ),
-              child: !hasFile ? const Icon(Icons.camera_enhance_outlined, color: Colors.grey) : null,
+              child: !hasFile
+                  ? const Icon(
+                      Icons.camera_enhance_outlined,
+                      color: Colors.grey,
+                    )
+                  : null,
             ),
             const SizedBox(width: 15),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                    ),
+                  ),
                   const SizedBox(height: 4),
-                  Text(subtitle, style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+                  Text(
+                    subtitle,
+                    style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                  ),
                 ],
               ),
             ),

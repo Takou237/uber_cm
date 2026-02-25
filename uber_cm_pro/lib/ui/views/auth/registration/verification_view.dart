@@ -4,6 +4,7 @@ import 'dart:developer';
 import 'dart:async';
 import '../../../../providers/auth_provider.dart';
 import '../../../../providers/language_provider.dart';
+import '../../../../providers/user_provider.dart'; // ✅ AJOUT DE L'IMPORT
 import '../../Enregistrement/vehicle_preference_view.dart';
 
 class VerificationView extends StatefulWidget {
@@ -14,28 +15,44 @@ class VerificationView extends StatefulWidget {
 }
 
 class _VerificationViewState extends State<VerificationView> {
-  final List<TextEditingController> _controllers = List.generate(6, (index) => TextEditingController());
+  final List<TextEditingController> _controllers = List.generate(
+    6,
+    (index) => TextEditingController(),
+  );
   bool _showError = false;
   Timer? _errorTimer;
 
-  // Dans _VerificationViewState, modifie la fonction _handleVerify :
-
+  // --- ✅ FONCTION MISE À JOUR ---
   Future<void> _handleVerify() async {
     String fullCode = _controllers.map((c) => c.text).join();
     if (fullCode.length < 6) return;
 
     final authProv = Provider.of<AuthProvider>(context, listen: false);
-    bool isValid = await authProv.verifyDriverOTP(fullCode);
 
-    if (isValid) {
+    // 1. On stocke le résultat dans un Map (driverData) au lieu d'un booléen
+    final driverData = await authProv.verifyDriverOTP(fullCode);
+
+    // 2. Si on a bien reçu les données (donc l'OTP est correct)
+    if (driverData != null) {
       if (!mounted) return;
-      // ✅ Redirection automatique vers les préférences
+
+      // 3. SAUVEGARDE DE L'ID : On enregistre les données pour la carte !
+      final userProv = Provider.of<UserProvider>(context, listen: false);
+      await userProv.saveUserData(
+        id: driverData['id'].toString(), // Le fameux vrai ID de Railway
+        name: driverData['name'] ?? "Chauffeur",
+        phone: driverData['phone'] ?? "",
+        plate: driverData['plate'] ?? "",
+      );
+
+      // 4. Redirection automatique
       Navigator.pushAndRemoveUntil(
-        context, 
+        context,
         MaterialPageRoute(builder: (context) => const VehiclePreferenceView()),
-        (route) => false, // Empêche le retour en arrière vers l'OTP
+        (route) => false,
       );
     } else {
+      // Le code est incorrect
       setState(() => _showError = true);
     }
   }
@@ -63,71 +80,104 @@ class _VerificationViewState extends State<VerificationView> {
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.black),
       ),
-      body: authProv.isLoading 
-        ? const Center(child: CircularProgressIndicator(color: Color(0xFFE91E63)))
-        : Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              isFr ? "Entrez le code de vérification" : "Enter the verification code",
-              style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF1A1A40)),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              isFr 
-                ? "Nous avons envoyé un code à six chiffres à $userEmail" 
-                : "We have sent you a six digit code on $userEmail",
-              style: const TextStyle(fontSize: 16, color: Colors.grey, height: 1.5),
-            ),
-            const SizedBox(height: 40),
-
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: List.generate(6, (index) => _otpBox(index)),
-            ),
-
-            const SizedBox(height: 25),
-
-            if (_showError)
-              Row(
+      body: authProv.isLoading
+          ? const Center(
+              child: CircularProgressIndicator(color: Color(0xFFE91E63)),
+            )
+          : Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.error_outline, color: Colors.red, size: 18),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      isFr ? "Code OTP incorrect, vérifiez et réessayez" : "Incorrect OTP, please check and try again",
-                      style: const TextStyle(color: Colors.red, fontWeight: FontWeight.w500),
+                  Text(
+                    isFr
+                        ? "Entrez le code de vérification"
+                        : "Enter the verification code",
+                    style: const TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1A1A40),
                     ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    isFr
+                        ? "Nous avons envoyé un code à six chiffres à $userEmail"
+                        : "We have sent you a six digit code on $userEmail",
+                    style: const TextStyle(
+                      fontSize: 16,
+                      color: Colors.grey,
+                      height: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 40),
+
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: List.generate(6, (index) => _otpBox(index)),
+                  ),
+
+                  const SizedBox(height: 25),
+
+                  if (_showError)
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.error_outline,
+                          color: Colors.red,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            isFr
+                                ? "Code OTP incorrect, vérifiez et réessayez"
+                                : "Incorrect OTP, please check and try again",
+                            style: const TextStyle(
+                              color: Colors.red,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+
+                  const Spacer(),
+
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      TextButton(
+                        onPressed: () => log("Renvoi du code..."),
+                        child: Text(
+                          isFr ? "Renvoyer le code" : "Resend code",
+                          style: const TextStyle(
+                            color: Colors.black,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      ElevatedButton(
+                        onPressed: _handleVerify,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFE91E63),
+                          foregroundColor: Colors.white,
+                          shape: const StadiumBorder(),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 32,
+                            vertical: 12,
+                          ),
+                        ),
+                        child: Text(
+                          isFr ? "S'inscrire" : "Sign up",
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
-
-            const Spacer(),
-
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                TextButton(
-                  onPressed: () => log("Renvoi du code..."),
-                  child: Text(isFr ? "Renvoyer le code" : "Resend code", style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
-                ),
-                ElevatedButton(
-                  onPressed: _handleVerify,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFE91E63),
-                    foregroundColor: Colors.white,
-                    shape: const StadiumBorder(),
-                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
-                  ),
-                  child: Text(isFr ? "S'inscrire" : "Sign up", style: const TextStyle(fontWeight: FontWeight.bold)),
-                ),
-              ],
             ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -135,7 +185,12 @@ class _VerificationViewState extends State<VerificationView> {
     return Container(
       width: 40,
       decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: _showError ? Colors.red : Colors.black, width: 2)),
+        border: Border(
+          bottom: BorderSide(
+            color: _showError ? Colors.red : Colors.black,
+            width: 2,
+          ),
+        ),
       ),
       child: TextField(
         controller: _controllers[index],
@@ -150,8 +205,15 @@ class _VerificationViewState extends State<VerificationView> {
             FocusScope.of(context).previousFocus();
           }
         },
-        style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: _showError ? Colors.red : Colors.black),
-        decoration: const InputDecoration(counterText: "", border: InputBorder.none),
+        style: TextStyle(
+          fontSize: 24,
+          fontWeight: FontWeight.bold,
+          color: _showError ? Colors.red : Colors.black,
+        ),
+        decoration: const InputDecoration(
+          counterText: "",
+          border: InputBorder.none,
+        ),
       ),
     );
   }

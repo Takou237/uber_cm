@@ -2,10 +2,12 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:firebase_database/firebase_database.dart'; // AJOUT : pour mettre à jour le statut
+import 'package:firebase_database/firebase_database.dart';
 import '../../../core/services/location_service.dart';
 import '../../../core/services/ride_service.dart';
 import '../../../core/services/route_service.dart';
+import 'package:provider/provider.dart';
+import '../../../providers/user_provider.dart';
 
 class HomeView extends StatefulWidget {
   const HomeView({super.key});
@@ -25,6 +27,18 @@ class _HomeViewState extends State<HomeView> {
   final LocationService _locationService = LocationService();
   final RideService _rideService = RideService();
 
+  // 1. On déclare la variable (vide au départ)
+  String _driverId = "";
+
+  // 2. On récupère l'ID du vrai chauffeur connecté au lancement de la page
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // On appelle le Provider qui gère ton utilisateur connecté
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    _driverId = userProvider.id.toString();
+  }
+
   StreamSubscription? _rideSubscription;
 
   // --- NOUVELLES VARIABLES POUR GÉRER LA COURSE EN COURS ---
@@ -36,6 +50,8 @@ class _HomeViewState extends State<HomeView> {
   void initState() {
     super.initState();
     _listenForRides();
+    // ✅ LE BLOC DE TEST TEMPORAIRE A ÉTÉ SUPPRIMÉ !
+    // Le chauffeur doit maintenant se connecter via la page de Login.
   }
 
   @override
@@ -45,7 +61,6 @@ class _HomeViewState extends State<HomeView> {
   }
 
   // --- LOGIQUE DE NAVIGATION VERS LE CLIENT ---
-
   Future<void> _getRouteToClient(Map<dynamic, dynamic> rideData) async {
     Position currentPos = await Geolocator.getCurrentPosition();
     LatLng driverLatLng = LatLng(currentPos.latitude, currentPos.longitude);
@@ -89,12 +104,10 @@ class _HomeViewState extends State<HomeView> {
   }
 
   // --- LOGIQUE D'ÉCOUTE DES COMMANDES ---
-
   void _listenForRides() {
     _rideSubscription = _rideService.getNewRideRequests().listen((event) {
       if (event.snapshot.value != null) {
         final data = Map<dynamic, dynamic>.from(event.snapshot.value as Map);
-        // N'afficher l'alerte que si le chauffeur est en ligne ET n'a pas déjà une course
         if (_isOnline && !_hasActiveRide && data['status'] == 'waiting') {
           _showRideDialog(data);
         }
@@ -144,32 +157,24 @@ class _HomeViewState extends State<HomeView> {
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-            // CORRECTION DE L'ERREUR ICI : async + ajout de la position + 4 arguments
             onPressed: () async {
-              // 1. Obtenir la position pour le calcul de l'ETA chez le client
               Position currentPos = await Geolocator.getCurrentPosition();
 
-              // 2. Mettre un ID de chauffeur réel (Ex: "1" ou "driver_001" selon ta BDD Railway)
-              String realDriverId = "1";
-
-              // 3. Appel de la fonction avec les 4 ARGUMENTS attendus !
               await _rideService.acceptRide(
                 rideData['requestId'],
-                realDriverId,
+                _driverId,
                 currentPos.latitude,
                 currentPos.longitude,
               );
 
               Navigator.pop(context);
 
-              // 4. Activer le panneau de la course en cours
               setState(() {
                 _hasActiveRide = true;
                 _activeRideData = rideData;
                 _rideStep = "accepted";
               });
 
-              // 5. TRACER L'ITINÉRAIRE VERS LE CLIENT
               _getRouteToClient(rideData);
             },
             child: const Text(
@@ -183,12 +188,10 @@ class _HomeViewState extends State<HomeView> {
   }
 
   // --- MISE À JOUR DU STATUT DE LA COURSE ---
-
   Future<void> _updateRideStatus(String newStatus) async {
     if (_activeRideData == null) return;
     String reqId = _activeRideData!['requestId'];
 
-    // Mise à jour sur Firebase pour que le client le voie en direct
     await FirebaseDatabase.instance
         .ref()
         .child("ride_requests")
@@ -199,7 +202,6 @@ class _HomeViewState extends State<HomeView> {
       _rideStep = newStatus;
     });
 
-    // Si la course est terminée, on nettoie tout
     if (newStatus == "completed") {
       setState(() {
         _hasActiveRide = false;
@@ -218,8 +220,18 @@ class _HomeViewState extends State<HomeView> {
   }
 
   // --- LOGIQUE DE STATUT EN LIGNE ---
-
   void _toggleStatus() {
+    // ✅ NOUVELLE SÉCURITÉ : On bloque si le chauffeur n'a pas d'ID valide
+    if (_driverId.isEmpty || _driverId == "null") {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Erreur de session. Veuillez vous reconnecter."),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     setState(() {
       _isOnline = !_isOnline;
       if (!_isOnline) {
@@ -229,10 +241,9 @@ class _HomeViewState extends State<HomeView> {
     });
 
     if (_isOnline) {
-      // Met ici l'ID de ton chauffeur
-      _locationService.startRealtimeTracking("1");
+      _locationService.startRealtimeTracking(_driverId);
     } else {
-      _locationService.goOffline("1");
+      _locationService.goOffline(_driverId);
     }
   }
 
@@ -274,8 +285,6 @@ class _HomeViewState extends State<HomeView> {
               ),
             ),
           ),
-
-          // AFFICHAGE DU PANNEAU DE COURSE EN COURS
           if (_hasActiveRide)
             Align(
               alignment: Alignment.bottomCenter,
@@ -283,7 +292,6 @@ class _HomeViewState extends State<HomeView> {
             ),
         ],
       ),
-      // On cache le bouton "Passer en Ligne/Hors ligne" s'il a une course en cours
       floatingActionButton: _hasActiveRide
           ? null
           : FloatingActionButton.extended(
@@ -302,14 +310,11 @@ class _HomeViewState extends State<HomeView> {
     );
   }
 
-  // --- UI : PANNEAU DE COURSE EN COURS ---
-
   Widget _buildActiveRidePanel() {
     String buttonText = "";
     Color buttonColor = Colors.blue;
     String nextStatus = "";
 
-    // Changement du bouton en fonction de l'étape
     if (_rideStep == "accepted") {
       buttonText = "JE SUIS ARRIVÉ";
       buttonColor = Colors.orange;
