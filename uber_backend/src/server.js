@@ -18,6 +18,28 @@ app.get('/', (req, res) => {
   res.send('Le serveur Uber_CM fonctionne !');
 });
 
+// --- ROUTE POUR LES CHAUFFEURS ---
+app.get('/chauffeurs/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // CORRECTION : On utilise 'db.query' pour correspondre à ton import
+    const result = await db.query('SELECT * FROM chauffeurs WHERE id = $1', [id]);
+    
+    // Si le chauffeur n'existe pas
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: "Chauffeur non trouvé" });
+    }
+    
+    // Si on le trouve, on renvoie ses données en JSON à l'application Flutter
+    res.json(result.rows[0]);
+    
+  } catch (error) {
+    console.error("Erreur serveur:", error.message);
+    res.status(500).json({ message: "Erreur interne du serveur" });
+  }
+});
+
 // Configuration du Port pour Railway
 const PORT = process.env.PORT || 5000;
 

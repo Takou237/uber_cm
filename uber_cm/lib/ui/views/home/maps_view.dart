@@ -1,12 +1,16 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:osm_nominatim/osm_nominatim.dart';
+import 'package:http/http.dart' as http;
+import 'package:provider/provider.dart'; // AJOUT pour le Provider
 import 'destination_view.dart';
 import '../../../core/services/route_service.dart';
+import '../../../data/providers/driver_provider.dart'; // AJOUT du chemin Provider
 
 // Modèle de véhicule basé sur la grille Yango Yaoundé
 class VehicleType {
@@ -49,6 +53,11 @@ class _MapsViewState extends State<MapsView> {
   // Ecouteur pour le changement de statut de la commande
   StreamSubscription<DatabaseEvent>? _rideStatusSubscription;
 
+  // --- NOUVELLES VARIABLES POUR LE PANEL CHAUFFEUR ---
+  bool _isRideAccepted = false;
+  Map<dynamic, dynamic>? _driverData;
+  String _estimatedArrivalTime = "5"; // Temps d'arrivée dynamique
+
   String _paymentMethod = "Espèces";
   IconData _paymentIcon = Icons.payments;
 
@@ -90,6 +99,27 @@ class _MapsViewState extends State<MapsView> {
     _positionStream?.cancel();
     _rideStatusSubscription?.cancel(); // Annulation de l'écouteur de statut
     super.dispose();
+  }
+
+  // --- CALCUL DYNAMIQUE DU TEMPS D'ARRIVÉE ---
+  void _calculateETA(double driverLat, double driverLng) {
+    if (_userLocation == null) return;
+
+    // Calcul de la distance entre chauffeur et client
+    double distanceInMeters = Geolocator.distanceBetween(
+      driverLat,
+      driverLng,
+      _userLocation!.latitude,
+      _userLocation!.longitude,
+    );
+
+    double distanceInKm = distanceInMeters / 1000;
+    // Estimation : 3 min par km dans la ville + 2 min de marge
+    int minutes = (distanceInKm * 3 + 2).round();
+
+    setState(() {
+      _estimatedArrivalTime = minutes.toString();
+    });
   }
 
   // --- LOGIQUE DE COMMANDE ---
@@ -169,7 +199,7 @@ class _MapsViewState extends State<MapsView> {
   void _listenToRideStatus(String requestId) {
     _rideStatusSubscription = _rideRequestRef.child(requestId).onValue.listen((
       event,
-    ) {
+    ) async {
       if (event.snapshot.value != null) {
         final data = Map<dynamic, dynamic>.from(event.snapshot.value as Map);
         String status = data['status'];
@@ -178,6 +208,24 @@ class _MapsViewState extends State<MapsView> {
           _rideStatusSubscription?.cancel(); // On arrête d'écouter
           Navigator.pop(context); // On ferme le dialogue de recherche
 
+          // 1. Récupération des détails via Railway (DriverProvider)
+          if (data['driver_id'] != null) {
+            await Provider.of<DriverProvider>(
+              context,
+              listen: false,
+            ).fetchDriverDetails(data['driver_id'].toString());
+          }
+
+          // 2. Calcul du temps d'arrivée
+          if (data['driver_lat'] != null && data['driver_lng'] != null) {
+            _calculateETA(data['driver_lat'], data['driver_lng']);
+          }
+
+          setState(() {
+            _isRideAccepted = true;
+            _driverData = data; // Contient les infos du chauffeur
+          });
+
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text("Course acceptée ! Votre chauffeur est en route."),
@@ -185,9 +233,6 @@ class _MapsViewState extends State<MapsView> {
               duration: Duration(seconds: 5),
             ),
           );
-
-          // TODO: Ici tu pourras rediriger vers une vue "Course en cours"
-          // ou afficher les infos du chauffeur en bas de l'écran.
         }
       }
     });
@@ -207,6 +252,7 @@ class _MapsViewState extends State<MapsView> {
       _rawDistanceKm = 0;
       _destinationAddress = "";
       _startAddress = "";
+      _isRideAccepted = false; // Reset de l'état
     });
     if (_userLocation != null) {
       _mapController?.animateCamera(
@@ -298,8 +344,24 @@ class _MapsViewState extends State<MapsView> {
         builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
           Set<Marker> allMarkers = Set.from(_routeMarkers);
           if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
-            Map<dynamic, dynamic> drivers =
-                snapshot.data!.snapshot.value as Map<dynamic, dynamic>;
+            // 1. On récupère la donnée brute sans forcer le type
+            var rawData = snapshot.data!.snapshot.value;
+            Map<dynamic, dynamic> drivers = {};
+
+            // 2. Si Firebase a bien renvoyé un Dictionnaire (Map)
+            if (rawData is Map) {
+              drivers = Map<dynamic, dynamic>.from(rawData);
+            }
+            // 3. LA CORRECTION : Si Firebase a transformé les données en Liste (Array)
+            else if (rawData is List) {
+              for (int i = 0; i < rawData.length; i++) {
+                if (rawData[i] != null) {
+                  drivers[i.toString()] = rawData[i];
+                }
+              }
+            }
+
+            // 4. On crée les marqueurs normalement, le crash est évité
             drivers.forEach((key, value) {
               allMarkers.add(
                 Marker(
@@ -334,7 +396,7 @@ class _MapsViewState extends State<MapsView> {
                   left: 20,
                   child: _buildCircleButton(Icons.menu),
                 ),
-              if (hasRoute)
+              if (hasRoute && !_isRideAccepted)
                 Positioned(
                   bottom: 360,
                   left: 20,
@@ -360,9 +422,11 @@ class _MapsViewState extends State<MapsView> {
                 ),
               Align(
                 alignment: Alignment.bottomCenter,
-                child: hasRoute
-                    ? _buildRideSelectionPanel(isFR)
-                    : _buildBottomPanel(isFR),
+                child: _isRideAccepted
+                    ? _buildDriverArrivingPanel(isFR)
+                    : (hasRoute
+                          ? _buildRideSelectionPanel(isFR)
+                          : _buildBottomPanel(isFR)),
               ),
               if (!hasRoute)
                 Positioned(
@@ -379,6 +443,197 @@ class _MapsViewState extends State<MapsView> {
   }
 
   // --- WIDGETS UI ---
+
+  // NOUVEAU PANEL : CHAUFFEUR EN ROUTE (Données réelles Railway)
+  Widget _buildDriverArrivingPanel(bool isFR) {
+    final driverProv = Provider.of<DriverProvider>(context);
+    final driver = driverProv.currentDriver;
+
+    return Container(
+      width: double.infinity,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(height: 12),
+          Container(
+            width: 40,
+            height: 5,
+            decoration: BoxDecoration(
+              color: Colors.grey[300],
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              children: [
+                // Statut et Temps d'arrivée dynamique
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          isFR ? "Le chauffeur arrive" : "Driver is arriving",
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          isFR
+                              ? "Retrouvez-le au point de départ"
+                              : "Meet your driver at the pick up spot",
+                          style: const TextStyle(
+                            color: Colors.grey,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF111727),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        "$_estimatedArrivalTime\nmin",
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          height: 1.2,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+
+                // Infos Chauffeur (Modifiées pour le Provider)
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 30,
+                      backgroundColor: Colors.grey[200],
+                      backgroundImage: driver?.photoUrl != null
+                          ? NetworkImage(driver!.photoUrl!)
+                          : null,
+                      child: driver?.photoUrl == null
+                          ? const Icon(Icons.person)
+                          : null,
+                    ),
+                    const SizedBox(width: 15),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            driver?.name ?? "Chargement...",
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 17,
+                            ),
+                          ),
+                          Text(
+                            driver?.vehicle != null
+                                ? "${driver!.vehicle} • ${driver.plate}"
+                                : "Recherche véhicule...",
+                            style: const TextStyle(color: Colors.grey),
+                          ),
+                        ],
+                      ),
+                    ),
+                    _buildCircleButton(Icons.phone, onTap: () {}),
+                    const SizedBox(width: 10),
+                    _buildCircleButton(Icons.message, onTap: () {}),
+                  ],
+                ),
+
+                const SizedBox(height: 20),
+
+                // Code de vérification
+                Container(
+                  padding: const EdgeInsets.all(15),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        isFR ? "code de vérification" : "verification code",
+                        style: const TextStyle(fontSize: 16),
+                      ),
+                      const Text(
+                        "2824",
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                // Détails du trajet réels
+                _buildAddressRow(
+                  Icons.radio_button_checked,
+                  _startAddress.isEmpty ? _currentAddress : _startAddress,
+                  Colors.grey,
+                ),
+                const SizedBox(height: 10),
+                _buildAddressRow(
+                  Icons.location_on,
+                  _destinationAddress,
+                  Colors.red,
+                ),
+
+                const SizedBox(height: 20),
+
+                // Bouton Fin
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.red,
+                      side: const BorderSide(color: Colors.red),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 15),
+                    ),
+                    onPressed: _resetNavigation,
+                    child: const Text(
+                      "End Ride",
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildRideSelectionPanel(bool isFR) {
     return Container(
@@ -401,7 +656,11 @@ class _MapsViewState extends State<MapsView> {
             ),
           ),
           const SizedBox(height: 15),
-          _buildAddressRow(Icons.person, _startAddress, Colors.black87),
+          _buildAddressRow(
+            Icons.person,
+            _startAddress.isEmpty ? _currentAddress : _startAddress,
+            Colors.black87,
+          ),
           const Padding(
             padding: EdgeInsets.only(left: 35),
             child: Divider(height: 20),
@@ -581,7 +840,7 @@ class _MapsViewState extends State<MapsView> {
         Expanded(
           child: Text(
             address,
-            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
             overflow: TextOverflow.ellipsis,
           ),
         ),

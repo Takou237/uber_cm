@@ -14,10 +14,17 @@ class RideService {
   }
 
   // Fonction pour accepter la course
-  Future<void> acceptRide(String requestId, String driverId) async {
+  Future<void> acceptRide(
+    String requestId,
+    String driverId,
+    double lat,
+    double lng,
+  ) async {
     await _rideRequestRef.child(requestId).update({
       "status": "accepted",
       "driver_id": driverId,
+      "driver_lat": lat, // AJOUT : On envoie la position du chauffeur
+      "driver_lng": lng, // AJOUT : On envoie la position du chauffeur
     });
   }
 }
