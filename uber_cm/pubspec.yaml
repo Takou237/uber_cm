@@ -23,6 +23,8 @@ dependencies:
   shared_preferences: ^2.2.2
   firebase_core: ^2.24.2
   firebase_database: ^10.4.0
+  google_maps_utils: ^2.0.0+1
+  flutter_animarker: ^3.2.0
 
 
 dev_dependencies:
@@ -35,3 +37,4 @@ flutter:
 
   assets:
     - assets/images/
+    - assets/images/car_top_view.png

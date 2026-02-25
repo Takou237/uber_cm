@@ -31,10 +31,7 @@ class _HomeViewState extends State<HomeView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _pages,
-      ),
+      body: IndexedStack(index: _currentIndex, children: _pages),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         onTap: (index) {
@@ -47,9 +44,18 @@ class _HomeViewState extends State<HomeView> {
         showUnselectedLabels: true,
         type: BottomNavigationBarType.fixed,
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: "Accueil"),
-          BottomNavigationBarItem(icon: Icon(Icons.grid_view), label: "Services"),
-          BottomNavigationBarItem(icon: Icon(Icons.receipt_long), label: "Activité"),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.home_filled),
+            label: "Accueil",
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.grid_view),
+            label: "Services",
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.receipt_long),
+            label: "Activité",
+          ),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: "Compte"),
         ],
       ),
@@ -77,18 +83,21 @@ class HomeMainContent extends StatelessWidget {
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.05),
                   blurRadius: 10,
-                )
+                ),
               ],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text("Uber CM", style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
+                const Text(
+                  "Uber CM",
+                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                ),
                 const SizedBox(height: 25),
                 GestureDetector(
                   onTap: () => Navigator.push(
-                    context, 
-                    MaterialPageRoute(builder: (_) => const MapsView())
+                    context,
+                    MaterialPageRoute(builder: (_) => const MapsView()),
                   ),
                   child: Container(
                     padding: const EdgeInsets.all(15),
@@ -103,13 +112,17 @@ class HomeMainContent extends StatelessWidget {
                         const SizedBox(width: 15),
                         Expanded(
                           child: Text(
-                            locationProv.currentAddress.isNotEmpty && locationProv.currentAddress != "Localisation en cours..."
+                            locationProv.currentAddress.isNotEmpty &&
+                                    locationProv.currentAddress !=
+                                        "Localisation en cours..."
                                 ? locationProv.currentAddress
                                 : "Où allez-vous ?",
                             style: TextStyle(
-                              fontSize: 18, 
-                              color: locationProv.currentAddress.isNotEmpty ? Colors.black : Colors.grey[700], 
-                              fontWeight: FontWeight.w500
+                              fontSize: 18,
+                              color: locationProv.currentAddress.isNotEmpty
+                                  ? Colors.black
+                                  : Colors.grey[700],
+                              fontWeight: FontWeight.w500,
                             ),
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -128,9 +141,24 @@ class HomeMainContent extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _buildServiceCard(context, "Course", Icons.directions_car, Colors.blue[50]!),
-                _buildServiceCard(context, "Colis", Icons.inventory_2, Colors.green[50]!),
-                _buildServiceCard(context, "Réserver", Icons.calendar_month, Colors.orange[50]!),
+                _buildServiceCard(
+                  context,
+                  "Course",
+                  Icons.directions_car,
+                  Colors.blue[50]!,
+                ),
+                _buildServiceCard(
+                  context,
+                  "Colis",
+                  Icons.inventory_2,
+                  Colors.green[50]!,
+                ),
+                _buildServiceCard(
+                  context,
+                  "Réserver",
+                  Icons.calendar_month,
+                  Colors.orange[50]!,
+                ),
               ],
             ),
           ),
@@ -141,13 +169,25 @@ class HomeMainContent extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text("Suggestions", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                const Text(
+                  "Suggestions",
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
                 const SizedBox(height: 15),
-                _buildLocationItem(Icons.history, "Dernière destination", "Carrefour Bastos, Yaoundé"),
+                _buildLocationItem(
+                  Icons.history,
+                  "Dernière destination",
+                  "Carrefour Bastos, Yaoundé",
+                ),
                 const Divider(),
                 _buildLocationItem(Icons.home, "Maison", "Entrée Simbock"),
                 const Divider(),
-                _buildLocationItem(Icons.star, "Lieux enregistrés", "Gérez vos favoris", isAction: true),
+                _buildLocationItem(
+                  Icons.star,
+                  "Lieux enregistrés",
+                  "Gérez vos favoris",
+                  isAction: true,
+                ),
               ],
             ),
           ),
@@ -156,15 +196,26 @@ class HomeMainContent extends StatelessWidget {
     );
   }
 
-  Widget _buildServiceCard(BuildContext context, String title, IconData icon, Color color) {
+  Widget _buildServiceCard(
+    BuildContext context,
+    String title,
+    IconData icon,
+    Color color,
+  ) {
     return GestureDetector(
-      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MapsView())),
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const MapsView()),
+      ),
       child: Column(
         children: [
           Container(
             width: 100,
             height: 80,
-            decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(15)),
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(15),
+            ),
             child: Icon(icon, size: 35, color: Colors.black87),
           ),
           const SizedBox(height: 8),
@@ -174,7 +225,12 @@ class HomeMainContent extends StatelessWidget {
     );
   }
 
-  Widget _buildLocationItem(IconData icon, String title, String subtitle, {bool isAction = false}) {
+  Widget _buildLocationItem(
+    IconData icon,
+    String title,
+    String subtitle, {
+    bool isAction = false,
+  }) {
     return ListTile(
       contentPadding: EdgeInsets.zero,
       leading: CircleAvatar(
@@ -196,7 +252,12 @@ class DevelopmentPlaceholder extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(title), elevation: 0, backgroundColor: Colors.white, foregroundColor: Colors.black),
+      appBar: AppBar(
+        title: Text(title),
+        elevation: 0,
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+      ),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,

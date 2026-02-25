@@ -1,16 +1,19 @@
 import 'dart:async';
-import 'dart:convert';
+import 'dart:math'; // AJOUT pour les calculs de rotation
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:osm_nominatim/osm_nominatim.dart';
-import 'package:http/http.dart' as http;
-import 'package:provider/provider.dart'; // AJOUT pour le Provider
+import 'package:provider/provider.dart';
 import 'destination_view.dart';
 import '../../../core/services/route_service.dart';
-import '../../../data/providers/driver_provider.dart'; // AJOUT du chemin Provider
+import '../../../data/providers/driver_provider.dart';
+//import '../../../data/providers/location_provider.dart'; // Pour ton LocationProvider
+import 'dart:ui' as ui; // Nécessaire pour le redimensionnement
+import 'package:flutter/services.dart';
+import 'dart:typed_data'; // ✅ Indispensable pour utiliser Uint8List
 
 // Modèle de véhicule basé sur la grille Yango Yaoundé
 class VehicleType {
@@ -36,11 +39,20 @@ class MapsView extends StatefulWidget {
 }
 
 class _MapsViewState extends State<MapsView> {
+  final Completer<GoogleMapController> _controller =
+      Completer(); // Mis à jour pour Animarker
   GoogleMapController? _mapController;
   String _currentAddress = "Localisation en cours...";
   String _startAddress = "";
   String _destinationAddress = "";
   LatLng? _userLocation;
+
+  // --- VARIABLES POUR L'ANIMATION ET ROTATION ---
+  Map<String, double> _driverRotations =
+      {}; // Stocke la rotation de chaque chauffeur
+  Map<String, LatLng> _prevDriverPositions =
+      {}; // Pour comparer et calculer l'angle
+  BitmapDescriptor? _carIcon; // L'icône de la voiture
 
   // LOGIQUE FIREBASE
   final DatabaseReference _driversRef = FirebaseDatabase.instance.ref().child(
@@ -50,13 +62,11 @@ class _MapsViewState extends State<MapsView> {
       .ref()
       .child("ride_requests");
 
-  // Ecouteur pour le changement de statut de la commande
   StreamSubscription<DatabaseEvent>? _rideStatusSubscription;
 
-  // --- NOUVELLES VARIABLES POUR LE PANEL CHAUFFEUR ---
   bool _isRideAccepted = false;
-  Map<dynamic, dynamic>? _driverData;
-  String _estimatedArrivalTime = "5"; // Temps d'arrivée dynamique
+  String _estimatedArrivalTime = "5";
+  Map<dynamic, dynamic> _driverData = {};
 
   String _paymentMethod = "Espèces";
   IconData _paymentIcon = Icons.payments;
@@ -95,17 +105,47 @@ class _MapsViewState extends State<MapsView> {
   );
 
   @override
+  void initState() {
+    super.initState();
+    _loadCustomMarker(); // Charger l'image de la voiture au démarrage
+  }
+
+  // Charger l'icône de voiture personnalisée
+  void _loadCustomMarker() async {
+    // On charge l'image avec une largeur fixe de 100 pixels
+    final Uint8List markerIcon = await getBytesFromAsset(
+      'assets/images/car_top_view.png',
+      100,
+    );
+
+    setState(() {
+      _carIcon = BitmapDescriptor.fromBytes(markerIcon);
+    });
+  }
+
+  @override
   void dispose() {
     _positionStream?.cancel();
-    _rideStatusSubscription?.cancel(); // Annulation de l'écouteur de statut
+    _rideStatusSubscription?.cancel();
     super.dispose();
   }
 
-  // --- CALCUL DYNAMIQUE DU TEMPS D'ARRIVÉE ---
+  // --- CALCUL MATHÉMATIQUE DE LA ROTATION ---
+  double _calculateBearing(LatLng start, LatLng end) {
+    double lat1 = start.latitude * pi / 180;
+    double lon1 = start.longitude * pi / 180;
+    double lat2 = end.latitude * pi / 180;
+    double lon2 = end.longitude * pi / 180;
+
+    double dLon = lon2 - lon1;
+    double y = sin(dLon) * cos(lat2);
+    double x = cos(lat1) * sin(lat2) - sin(lat1) * cos(lat2) * cos(dLon);
+    return (atan2(y, x) * 180 / pi + 360) % 360;
+  }
+
   void _calculateETA(double driverLat, double driverLng) {
     if (_userLocation == null) return;
 
-    // Calcul de la distance entre chauffeur et client
     double distanceInMeters = Geolocator.distanceBetween(
       driverLat,
       driverLng,
@@ -114,15 +154,12 @@ class _MapsViewState extends State<MapsView> {
     );
 
     double distanceInKm = distanceInMeters / 1000;
-    // Estimation : 3 min par km dans la ville + 2 min de marge
     int minutes = (distanceInKm * 3 + 2).round();
 
     setState(() {
       _estimatedArrivalTime = minutes.toString();
     });
   }
-
-  // --- LOGIQUE DE COMMANDE ---
 
   void _sendRideRequest() {
     if (_userLocation == null || _destinationAddress.isEmpty) {
@@ -164,7 +201,6 @@ class _MapsViewState extends State<MapsView> {
     };
 
     _rideRequestRef.child(requestId).set(requestData).then((_) {
-      // DÉBUT DE L'ÉCOUTE DU CHANGEMENT DE STATUT
       _listenToRideStatus(requestId);
 
       showDialog(
@@ -195,7 +231,6 @@ class _MapsViewState extends State<MapsView> {
     });
   }
 
-  // NOUVELLE FONCTION : Écoute si le chauffeur accepte
   void _listenToRideStatus(String requestId) {
     _rideStatusSubscription = _rideRequestRef.child(requestId).onValue.listen((
       event,
@@ -205,10 +240,9 @@ class _MapsViewState extends State<MapsView> {
         String status = data['status'];
 
         if (status == "accepted") {
-          _rideStatusSubscription?.cancel(); // On arrête d'écouter
-          Navigator.pop(context); // On ferme le dialogue de recherche
+          _rideStatusSubscription?.cancel();
+          Navigator.pop(context);
 
-          // 1. Récupération des détails via Railway (DriverProvider)
           if (data['driver_id'] != null) {
             await Provider.of<DriverProvider>(
               context,
@@ -216,14 +250,13 @@ class _MapsViewState extends State<MapsView> {
             ).fetchDriverDetails(data['driver_id'].toString());
           }
 
-          // 2. Calcul du temps d'arrivée
           if (data['driver_lat'] != null && data['driver_lng'] != null) {
             _calculateETA(data['driver_lat'], data['driver_lng']);
           }
 
           setState(() {
             _isRideAccepted = true;
-            _driverData = data; // Contient les infos du chauffeur
+            _driverData = data;
           });
 
           ScaffoldMessenger.of(context).showSnackBar(
@@ -238,8 +271,6 @@ class _MapsViewState extends State<MapsView> {
     });
   }
 
-  // --- LOGIQUE NAVIGATION & UI ---
-
   void _calculatePrice() {
     if (_rawDistanceKm == 0) return;
     setState(() {});
@@ -252,7 +283,7 @@ class _MapsViewState extends State<MapsView> {
       _rawDistanceKm = 0;
       _destinationAddress = "";
       _startAddress = "";
-      _isRideAccepted = false; // Reset de l'état
+      _isRideAccepted = false;
     });
     if (_userLocation != null) {
       _mapController?.animateCamera(
@@ -344,16 +375,12 @@ class _MapsViewState extends State<MapsView> {
         builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
           Set<Marker> allMarkers = Set.from(_routeMarkers);
           if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
-            // 1. On récupère la donnée brute sans forcer le type
             var rawData = snapshot.data!.snapshot.value;
             Map<dynamic, dynamic> drivers = {};
 
-            // 2. Si Firebase a bien renvoyé un Dictionnaire (Map)
             if (rawData is Map) {
               drivers = Map<dynamic, dynamic>.from(rawData);
-            }
-            // 3. LA CORRECTION : Si Firebase a transformé les données en Liste (Array)
-            else if (rawData is List) {
+            } else if (rawData is List) {
               for (int i = 0; i < rawData.length; i++) {
                 if (rawData[i] != null) {
                   drivers[i.toString()] = rawData[i];
@@ -361,34 +388,54 @@ class _MapsViewState extends State<MapsView> {
               }
             }
 
-            // 4. On crée les marqueurs normalement, le crash est évité
             drivers.forEach((key, value) {
+              LatLng currentPos = LatLng(value['latitude'], value['longitude']);
+
+              // CALCUL DE LA ROTATION DYNAMIQUE
+              if (_prevDriverPositions.containsKey(key)) {
+                _driverRotations[key] = _calculateBearing(
+                  _prevDriverPositions[key]!,
+                  currentPos,
+                );
+              }
+              _prevDriverPositions[key] = currentPos;
+
               allMarkers.add(
                 Marker(
                   markerId: MarkerId(key),
-                  position: LatLng(value['latitude'], value['longitude']),
-                  icon: BitmapDescriptor.defaultMarkerWithHue(
-                    BitmapDescriptor.hueYellow,
-                  ),
+                  position: currentPos,
+                  rotation: _driverRotations[key] ?? 0.0, // ✅ Rotation !
+                  anchor: const Offset(
+                    0.5,
+                    0.5,
+                  ), // ✅ Rotation sur l'axe central
+                  icon:
+                      _carIcon ??
+                      BitmapDescriptor.defaultMarkerWithHue(
+                        BitmapDescriptor.hueYellow,
+                      ),
                   infoWindow: const InfoWindow(title: "Chauffeur Uber CM"),
                 ),
               );
             });
           }
+
           return Stack(
             children: [
+              // ✅ AJOUT : GoogleMap avec markers gérés directement
               GoogleMap(
                 initialCameraPosition: _kInitialPos,
                 myLocationButtonEnabled: false,
                 zoomControlsEnabled: false,
                 myLocationEnabled: true,
-                markers: allMarkers,
-                polylines: _polylines,
                 onMapCreated: (controller) {
                   _mapController = controller;
+                  _controller.complete(controller);
                   _determinePosition();
                 },
                 onTap: _handleMapTap,
+                polylines: _polylines,
+                markers: allMarkers,
               ),
               if (!hasRoute)
                 Positioned(
@@ -442,9 +489,8 @@ class _MapsViewState extends State<MapsView> {
     );
   }
 
-  // --- WIDGETS UI ---
+  // --- WIDGETS UI (Inchauffés) ---
 
-  // NOUVEAU PANEL : CHAUFFEUR EN ROUTE (Données réelles Railway)
   Widget _buildDriverArrivingPanel(bool isFR) {
     final driverProv = Provider.of<DriverProvider>(context);
     final driver = driverProv.currentDriver;
@@ -468,12 +514,10 @@ class _MapsViewState extends State<MapsView> {
               borderRadius: BorderRadius.circular(10),
             ),
           ),
-
           Padding(
             padding: const EdgeInsets.all(20),
             child: Column(
               children: [
-                // Statut et Temps d'arrivée dynamique
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -520,8 +564,6 @@ class _MapsViewState extends State<MapsView> {
                   ],
                 ),
                 const SizedBox(height: 20),
-
-                // Infos Chauffeur (Modifiées pour le Provider)
                 Row(
                   children: [
                     CircleAvatar(
@@ -560,10 +602,7 @@ class _MapsViewState extends State<MapsView> {
                     _buildCircleButton(Icons.message, onTap: () {}),
                   ],
                 ),
-
                 const SizedBox(height: 20),
-
-                // Code de vérification
                 Container(
                   padding: const EdgeInsets.all(15),
                   decoration: BoxDecoration(
@@ -588,10 +627,7 @@ class _MapsViewState extends State<MapsView> {
                     ],
                   ),
                 ),
-
                 const SizedBox(height: 20),
-
-                // Détails du trajet réels
                 _buildAddressRow(
                   Icons.radio_button_checked,
                   _startAddress.isEmpty ? _currentAddress : _startAddress,
@@ -603,10 +639,7 @@ class _MapsViewState extends State<MapsView> {
                   _destinationAddress,
                   Colors.red,
                 ),
-
                 const SizedBox(height: 20),
-
-                // Bouton Fin
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
@@ -1002,5 +1035,27 @@ class _MapsViewState extends State<MapsView> {
       ),
     );
     if (result != null) _addDestinationMarker(result);
+  }
+
+  //
+
+  Future<Uint8List> getBytesFromAsset(String path, int width) async {
+    // 1. Chargement de l'image depuis les assets
+    ByteData data = await rootBundle.load(path);
+
+    // 2. Création du codec pour le redimensionnement
+    // On ajoute .buffer ici 👇
+    ui.Codec codec = await ui.instantiateImageCodec(
+      data.buffer.asUint8List(),
+      targetWidth: width,
+    );
+
+    ui.FrameInfo fi = await codec.getNextFrame();
+
+    // 3. Conversion de l'image redimensionnée en octets PNG
+    // On ajoute .buffer ici aussi 👇
+    return (await fi.image.toByteData(
+      format: ui.ImageByteFormat.png,
+    ))!.buffer.asUint8List();
   }
 }
