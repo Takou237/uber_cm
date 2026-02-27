@@ -4,7 +4,7 @@ import 'dart:developer';
 import 'dart:async';
 import '../../../../providers/auth_provider.dart';
 import '../../../../providers/language_provider.dart';
-import '../../../../providers/user_provider.dart'; // ✅ AJOUT DE L'IMPORT
+import '../../../../providers/user_provider.dart';
 import '../../Enregistrement/vehicle_preference_view.dart';
 
 class VerificationView extends StatefulWidget {
@@ -28,31 +28,29 @@ class _VerificationViewState extends State<VerificationView> {
     if (fullCode.length < 6) return;
 
     final authProv = Provider.of<AuthProvider>(context, listen: false);
-
-    // 1. On stocke le résultat dans un Map (driverData) au lieu d'un booléen
     final driverData = await authProv.verifyDriverOTP(fullCode);
 
-    // 2. Si on a bien reçu les données (donc l'OTP est correct)
-    if (driverData != null) {
-      if (!mounted) return;
+    // ✅ SÉCURITÉ : On vérifie si le widget est toujours "mounted" avant de continuer
+    if (!mounted) return;
 
-      // 3. SAUVEGARDE DE L'ID : On enregistre les données pour la carte !
+    if (driverData != null) {
       final userProv = Provider.of<UserProvider>(context, listen: false);
       await userProv.saveUserData(
-        id: driverData['id'].toString(), // Le fameux vrai ID de Railway
+        id: driverData['id'].toString(),
         name: driverData['name'] ?? "Chauffeur",
         phone: driverData['phone'] ?? "",
         plate: driverData['plate'] ?? "",
       );
 
-      // 4. Redirection automatique
+      // ✅ Re-vérification après le deuxième await
+      if (!mounted) return;
+
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (context) => const VehiclePreferenceView()),
         (route) => false,
       );
     } else {
-      // Le code est incorrect
       setState(() => _showError = true);
     }
   }

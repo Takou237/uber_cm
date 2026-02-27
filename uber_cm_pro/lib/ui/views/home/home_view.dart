@@ -158,6 +158,9 @@ class _HomeViewState extends State<HomeView> {
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
             onPressed: () async {
+              // 1. On sauvegarde le Navigator avant l'async gap
+              final navigator = Navigator.of(context); 
+
               Position currentPos = await Geolocator.getCurrentPosition();
 
               await _rideService.acceptRide(
@@ -167,7 +170,11 @@ class _HomeViewState extends State<HomeView> {
                 currentPos.longitude,
               );
 
-              Navigator.pop(context);
+              // 2. On vérifie si le State est toujours là
+              if (!mounted) return;
+
+              // 3. On utilise la référence sauvegardée pour fermer le dialogue
+              navigator.pop(); 
 
               setState(() {
                 _hasActiveRide = true;
@@ -210,6 +217,7 @@ class _HomeViewState extends State<HomeView> {
         _polylines.clear();
         _markers.clear();
       });
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text("Course terminée avec succès !"),

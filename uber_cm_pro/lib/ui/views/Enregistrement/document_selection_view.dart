@@ -41,7 +41,6 @@ class _DocumentSelectionViewState extends State<DocumentSelectionView> {
 
   // ✅ CORRECTION : La fonction pour envoyer les données au backend
   Future<void> _handleUpload(AuthProvider authProv, bool isFr) async {
-    // 1. On récupère les données renvoyées par Railway (au lieu de success)
     final driverData = await authProv.completeVehicleRegistration(
       brand: widget.vehicleData['brand']!,
       model: widget.vehicleData['model']!,
@@ -51,46 +50,41 @@ class _DocumentSelectionViewState extends State<DocumentSelectionView> {
       files: _files,
     );
 
-    // 2. Si on a bien reçu une réponse (driverData n'est pas nul)
+    // ✅ SÉCURITÉ 1 : On vérifie le montage du widget
+    if (!mounted) return;
+
     if (driverData != null) {
-      if (mounted) {
-        // 3. ✅ On met à jour le UserProvider avec les nouvelles infos du véhicule !
-        final userProv = Provider.of<UserProvider>(context, listen: false);
-        await userProv.saveUserData(
-          id:
-              driverData['id']?.toString() ??
-              userProv.id, // On garde l'ID s'il est déjà là
-          name: driverData['name'] ?? userProv.name,
-          phone: driverData['phone'] ?? userProv.phone,
-          plate:
-              widget.vehicleData['plate']!, // On sauvegarde la plaque saisie !
-        );
+      final userProv = Provider.of<UserProvider>(context, listen: false);
+      await userProv.saveUserData(
+        id: driverData['id']?.toString() ?? userProv.id,
+        name: driverData['name'] ?? userProv.name,
+        phone: driverData['phone'] ?? userProv.phone,
+        plate: widget.vehicleData['plate']!,
+      );
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              isFr ? "Inscription réussie !" : "Registration successful!",
-            ),
-          ),
-        );
+      // ✅ SÉCURITÉ 2 : Re-vérifier après la sauvegarde
+      if (!mounted) return;
 
-        // 4. On va vers la page de succès
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const RegistrationSuccessView(),
-          ),
-        );
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(isFr ? "Inscription réussie !" : "Registration successful!"),
+        ),
+      );
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const RegistrationSuccessView(),
+        ),
+      );
     } else {
-      // 5. En cas d'échec (driverData est null)
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(isFr ? "Erreur lors de l'envoi" : "Upload failed"),
-          ),
-        );
-      }
+      // ✅ SÉCURITÉ 3 : Pour le message d'erreur
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(isFr ? "Erreur lors de l'envoi" : "Upload failed"),
+        ),
+      );
     }
   }
 
