@@ -13,7 +13,6 @@ import '../../../data/providers/driver_provider.dart';
 //import '../../../data/providers/location_provider.dart'; // Pour ton LocationProvider
 import 'dart:ui' as ui; // Nécessaire pour le redimensionnement
 import 'package:flutter/services.dart';
-import 'dart:typed_data'; // ✅ Indispensable pour utiliser Uint8List
 
 // Modèle de véhicule basé sur la grille Yango Yaoundé
 class VehicleType {
@@ -48,9 +47,9 @@ class _MapsViewState extends State<MapsView> {
   LatLng? _userLocation;
 
   // --- VARIABLES POUR L'ANIMATION ET ROTATION ---
-  Map<String, double> _driverRotations =
+  final Map<String, double> _driverRotations =
       {}; // Stocke la rotation de chaque chauffeur
-  Map<String, LatLng> _prevDriverPositions =
+  final Map<String, LatLng> _prevDriverPositions =
       {}; // Pour comparer et calculer l'angle
   BitmapDescriptor? _carIcon; // L'icône de la voiture
 
@@ -119,7 +118,7 @@ class _MapsViewState extends State<MapsView> {
     );
 
     setState(() {
-      _carIcon = BitmapDescriptor.fromBytes(markerIcon);
+      _carIcon = BitmapDescriptor.bytes(markerIcon);
     });
   }
 
@@ -201,6 +200,7 @@ class _MapsViewState extends State<MapsView> {
     };
 
     _rideRequestRef.child(requestId).set(requestData).then((_) {
+      if (!mounted) return;
       _listenToRideStatus(requestId);
 
       showDialog(
@@ -240,35 +240,42 @@ class _MapsViewState extends State<MapsView> {
         String status = data['status'];
 
         if (status == "accepted") {
-          _rideStatusSubscription?.cancel();
-          Navigator.pop(context);
+            _rideStatusSubscription?.cancel();
+            
+            // ✅ SÉCURITÉ 1 : Vérifier si le widget est toujours affiché
+            if (!mounted) return; 
+            Navigator.pop(context);
 
-          if (data['driver_id'] != null) {
-            await Provider.of<DriverProvider>(
-              context,
-              listen: false,
-            ).fetchDriverDetails(data['driver_id'].toString());
+            if (data['driver_id'] != null) {
+              // ✅ SÉCURITÉ 2 : Vérifier avant d'appeler le Provider
+              if (!mounted) return; 
+              await Provider.of<DriverProvider>(
+                context,
+                listen: false,
+              ).fetchDriverDetails(data['driver_id'].toString());
+            }
+
+            if (data['driver_lat'] != null && data['driver_lng'] != null) {
+              _calculateETA(data['driver_lat'], data['driver_lng']);
+            }
+
+            // ✅ SÉCURITÉ 3 : Vérifier avant le setState
+            if (!mounted) return; 
+            setState(() {
+              _isRideAccepted = true;
+              _driverData = data;
+            });
+
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text("Course acceptée ! Votre chauffeur est en route."),
+                backgroundColor: Colors.green,
+              ),
+            );
           }
-
-          if (data['driver_lat'] != null && data['driver_lng'] != null) {
-            _calculateETA(data['driver_lat'], data['driver_lng']);
-          }
-
-          setState(() {
-            _isRideAccepted = true;
-            _driverData = data;
-          });
-
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("Course acceptée ! Votre chauffeur est en route."),
-              backgroundColor: Colors.green,
-              duration: Duration(seconds: 5),
-            ),
-          );
         }
       }
-    });
+    );
   }
 
   void _calculatePrice() {
@@ -1016,9 +1023,11 @@ class _MapsViewState extends State<MapsView> {
 
   Future<void> _determinePosition() async {
     LocationPermission permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied)
+    if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
+    }
     Position position = await Geolocator.getCurrentPosition();
+    if (!mounted) return;
     _userLocation = LatLng(position.latitude, position.longitude);
     await _updateAddressFromCoords(position.latitude, position.longitude);
     _mapController?.animateCamera(
