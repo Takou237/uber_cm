@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
+
 import 'providers/auth_provider.dart';
 import 'providers/language_provider.dart';
 import 'providers/user_provider.dart';
+
 import 'ui/views/auth/onboarding_pro_view.dart';
 import 'ui/views/Enregistrement/vehicle_preference_view.dart';
+// ✅ 1. AJOUTE CET IMPORT (Vérifie bien le chemin vers ta HomeView)
 import 'ui/views/home/home_view.dart'; 
 
 void main() async {
