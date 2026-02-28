@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../data/providers/location_provider.dart';
 import 'maps_view.dart';
-import 'account_view.dart';
+import '../account/account_view.dart';
 
 class HomeView extends StatefulWidget {
   const HomeView({super.key});

@@ -117,12 +117,16 @@ class _OtpVerificationViewState extends State<OtpVerificationView> {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final userData = data['user'];
+        
+        // On récupère l'ID, le nom et le téléphone depuis la réponse API
+        final String idFromDb = userData?['id']?.toString() ?? ""; // On récupère l'ID
         final String nameFromDb = userData?['name'] ?? "Client Uber";
         final String phoneFromDb = userData?['phone'] ?? widget.phoneNumber ?? "";
+        final String emailFromDb = userData?['email'] ?? ""; // Optionnel
 
-        // L'utilisation du context ici est maintenant sûre
+        // ✅ CORRECTION : On passe maintenant 3 arguments (id, name, phone)
         await Provider.of<UserProvider>(context, listen: false)
-            .setUser(nameFromDb, phoneFromDb);
+            .setUser(idFromDb, nameFromDb, phoneFromDb, email: emailFromDb);
 
         if (!mounted) return;
         

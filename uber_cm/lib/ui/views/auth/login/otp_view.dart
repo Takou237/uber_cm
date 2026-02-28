@@ -116,10 +116,15 @@ class _OtpViewState extends State<OtpView> {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final userData = data['user'];
+        
+        // Extraction des données
+        final String id = userData?['id']?.toString() ?? "";
         final String name = userData?['name'] ?? "Utilisateur Uber";
         final String phone = userData?['phone'] ?? widget.phone;
 
-        await Provider.of<UserProvider>(context, listen: false).setUser(name, phone);
+        // ✅ CORRECTION : Ajout de l'ID en premier argument
+        await Provider.of<UserProvider>(context, listen: false)
+            .setUser(id, name, phone);
 
         if (!mounted) return;
         Navigator.pushAndRemoveUntil(
